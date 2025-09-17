@@ -13,7 +13,7 @@ class RoomAllocationAdmin(admin.ModelAdmin):
     Admin interface for RoomAllocation model.
     """
     list_display = [
-        'room', 'get_allocated_to', 'allocation_type', 'is_active',
+        'get_room_info', 'get_allocated_to', 'allocation_type', 'is_active',
         'start_date', 'end_date', 'get_duration', 'allocation_date'
     ]
     
@@ -27,7 +27,27 @@ class RoomAllocationAdmin(admin.ModelAdmin):
         'service_unit__name', 'notes'
     ]
     
+    # Add select_related to optimize queries
+    def get_queryset(self, request):
+        """Optimize queryset with select_related."""
+        qs = super().get_queryset(request)
+        qs = qs.select_related('room', 'room__building', 'user', 'service_unit', 'allocated_by')
+        
+        # Apply user-based filtering
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'service_unit') and request.user.service_unit:
+            return qs.filter(service_unit=request.user.service_unit)
+        return qs.filter(user=request.user)
+    
     readonly_fields = ['allocation_date']
+    
+    # Custom form to ensure proper display
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Customize foreign key fields in admin forms."""
+        if db_field.name == "room":
+            kwargs["queryset"] = db_field.related_model.objects.select_related('building')
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
     fieldsets = (
         (None, {
@@ -45,6 +65,14 @@ class RoomAllocationAdmin(admin.ModelAdmin):
         }),
     )
     
+    def get_room_info(self, obj):
+        """Display room and building information."""
+        if obj.room:
+            return f"{obj.room.building.name} - Room {obj.room.room_number}"
+        return "No room assigned"
+    get_room_info.short_description = 'Room & Building'
+    get_room_info.admin_order_field = 'room__room_number'
+    
     def get_allocated_to(self, obj):
         """Display allocated to information."""
         if obj.user:
@@ -61,15 +89,6 @@ class RoomAllocationAdmin(admin.ModelAdmin):
             return f"{duration} days"
         return "Unknown"
     get_duration.short_description = 'Duration'
-    
-    def get_queryset(self, request):
-        """Filter based on user permissions."""
-        qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs
-        if hasattr(request.user, 'service_unit') and request.user.service_unit:
-            return qs.filter(service_unit=request.user.service_unit)
-        return qs.filter(user=request.user)
 
 
 @admin.register(AllocationRequest)

@@ -1,25 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import userService from '../../services/userService';
-import { useAuthContext } from '../../contexts/authContext';
+import { serviceUnitsService } from '../../services/serviceUnitsService';
+import { useToast } from '../../contexts/ToastContext';
 import { 
   Plus, 
   Search, 
   Filter, 
   Edit, 
   Trash2, 
-  Eye,
-  MoreHorizontal,
-  UserPlus,
-  Mail,
-  Phone,
   User,
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
 
 const UserManagementPage = () => {
-  const { user: currentUser } = useAuthContext();
+  const { showSuccess, showError } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,6 +28,7 @@ const UserManagementPage = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [availableRoles, setAvailableRoles] = useState([]);
+  const [serviceUnits, setServiceUnits] = useState([]);
 
   const usersPerPage = 10;
 
@@ -78,10 +75,23 @@ const UserManagementPage = () => {
     }
   };
 
+  // Fetch service units
+  const fetchServiceUnits = async () => {
+    try {
+      const response = await serviceUnitsService.getServiceUnits();
+      if (response.success) {
+        setServiceUnits(response.data.results || response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching service units:', err);
+    }
+  };
+
   // Initial data fetch
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    fetchServiceUnits();
   }, []);
 
   // Handle search and filter changes
@@ -99,7 +109,7 @@ const UserManagementPage = () => {
     if (currentPage > 1) {
       fetchUsers(currentPage, searchTerm, selectedRole);
     }
-  }, [currentPage]);
+  }, [currentPage, searchTerm, selectedRole]);
 
   // Filter users based on search and role
   const filteredUsers = users;
@@ -122,13 +132,18 @@ const UserManagementPage = () => {
     try {
       const response = await userService.deleteUser(userId);
       if (response.success) {
+        // Show success toast
+        showSuccess('User deleted successfully!');
         // Refresh the users list
         fetchUsers(currentPage, searchTerm, selectedRole);
       } else {
-        alert(response.message || 'Failed to delete user');
+        // Show error toast with specific message
+        showError(response.error || response.message || 'Failed to delete user');
+        console.error('Delete user error:', response);
       }
     } catch (err) {
-      alert('An error occurred while deleting the user');
+      // Show error toast for unexpected errors
+      showError('An unexpected error occurred while deleting the user');
       console.error('Error deleting user:', err);
     }
   };
@@ -331,7 +346,7 @@ const UserManagementPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.service_unit || user.serviceUnit || '-'}
+                      {user.service_unit_name || user.service_unit || user.serviceUnit || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(user.is_active !== undefined ? user.is_active : user.isActive)}`}>
@@ -450,6 +465,7 @@ const UserManagementPage = () => {
         <UserFormModal
           user={selectedUser}
           availableRoles={availableRoles}
+          serviceUnits={serviceUnits}
           onClose={() => setShowCreateModal(false)}
           onSave={async (userData) => {
             try {
@@ -464,13 +480,22 @@ const UserManagementPage = () => {
 
               if (response.success) {
                 setShowCreateModal(false);
+                // Show success toast
+                showSuccess(
+                  selectedUser 
+                    ? 'User updated successfully!' 
+                    : 'User created successfully!'
+                );
                 // Refresh the users list
                 fetchUsers(currentPage, searchTerm, selectedRole);
               } else {
-                alert(response.message || 'Failed to save user');
+                // Show error toast with specific message
+                showError(response.error || response.message || 'Failed to save user');
+                console.error('Save user error:', response);
               }
             } catch (err) {
-              alert('An error occurred while saving the user');
+              // Show error toast for unexpected errors
+              showError('An unexpected error occurred while saving the user');
               console.error('Error saving user:', err);
             }
           }}
@@ -481,14 +506,14 @@ const UserManagementPage = () => {
 };
 
 // User Form Modal Component
-const UserFormModal = ({ user, availableRoles, onClose, onSave }) => {
+const UserFormModal = ({ user, availableRoles, serviceUnits, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     username: user?.username || '',
     email: user?.email || '',
     first_name: user?.first_name || user?.firstName || '',
     last_name: user?.last_name || user?.lastName || '',
     role: user?.role || 'Member',
-    service_unit: user?.service_unit || user?.serviceUnit || '',
+    service_unit: user?.service_unit?.id || user?.service_unit || '',
     password: '',
     password_confirm: ''
   });
@@ -507,7 +532,9 @@ const UserFormModal = ({ user, availableRoles, onClose, onSave }) => {
     if (!formData.email) newErrors.email = 'Email is required';
     if (!formData.username) newErrors.username = 'Username is required';
     if (!user && !formData.password) newErrors.password = 'Password is required';
-    if (!user && formData.password !== formData.password_confirm) {
+    
+    // Password confirmation validation for both new and existing users
+    if (formData.password && formData.password !== formData.password_confirm) {
       newErrors.password_confirm = 'Passwords do not match';
     }
     
@@ -667,12 +694,11 @@ const UserFormModal = ({ user, availableRoles, onClose, onSave }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
               >
                 <option value="">Select Service Unit</option>
-                <option value="Men's Ministry">Men's Ministry</option>
-                <option value="Women's Ministry">Women's Ministry</option>
-                <option value="Youth Ministry">Youth Ministry</option>
-                <option value="Children's Ministry">Children's Ministry</option>
-                <option value="Choir Ministry">Choir Ministry</option>
-                <option value="Usher's Ministry">Usher's Ministry</option>
+                {(serviceUnits || []).map(unit => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}

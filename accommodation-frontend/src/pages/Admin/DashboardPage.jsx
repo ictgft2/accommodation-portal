@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import AdminLayout from '../../components/layout/AdminLayout';
+import { dashboardService } from '../../services/dashboardService';
 import {
   Users,
   Building,
@@ -18,11 +19,9 @@ import {
   Plus,
   ArrowRight,
   Activity,
-  Eye,
   BarChart3,
   MapPin,
   UserCheck,
-  Settings,
   ChevronRight,
   ClipboardList,
   Bell
@@ -34,112 +33,51 @@ const DashboardPage = () => {
   const [dashboardData, setDashboardData] = useState({
     stats: {},
     recentActivities: [],
-    loading: true
+    user: null,
+    loading: true,
+    error: null
   });
 
   useEffect(() => {
-    // Simulate loading dashboard data
     const loadDashboardData = async () => {
-      // This would be replaced with actual API calls
-      setTimeout(() => {
-        setDashboardData({
-          stats: getStatsForRole(user?.role),
-          recentActivities: getRecentActivitiesForRole(user?.role),
-          loading: false
-        });
-      }, 1000);
+      if (!user) return;
+      
+      try {
+        setDashboardData(prev => ({ ...prev, loading: true, error: null }));
+        
+        // Call the real API
+        const response = await dashboardService.getDashboardSummary();
+        
+        if (response.success) {
+          setDashboardData({
+            stats: response.data.stats,
+            recentActivities: response.data.activities,
+            user: response.data.user,
+            loading: false,
+            error: null
+          });
+        } else {
+          // Show error when API fails - no fallback to dummy data
+          console.error('Dashboard API failed:', response.error);
+          setDashboardData(prev => ({
+            ...prev,
+            loading: false,
+            error: response.error || 'Failed to load dashboard data'
+          }));
+        }
+      } catch (error) {
+        console.error('Dashboard loading error:', error);
+        // Show error when API fails - no fallback to dummy data
+        setDashboardData(prev => ({
+          ...prev,
+          loading: false,
+          error: error.message || 'Failed to load dashboard data'
+        }));
+      }
     };
 
     loadDashboardData();
   }, [user]);
-
-  const getStatsForRole = (role) => {
-    switch (role) {
-      case 'SuperAdmin':
-        return {
-          totalUsers: 1247,
-          totalBuildings: 15,
-          totalRooms: 320,
-          occupancyRate: 87,
-          pendingRequests: 23,
-          monthlyRevenue: 125000,
-          activeAllocations: 278,
-          maintenanceRequests: 12
-        };
-      case 'ServiceUnitAdmin':
-        return {
-          totalMembers: 89,
-          allocatedRooms: 67,
-          pendingRequests: 8,
-          occupancyRate: 75,
-          upcomingCheckouts: 5,
-          upcomingCheckins: 12
-        };
-      case 'Pastor':
-        return {
-          assignedRooms: 25,
-          occupiedRooms: 22,
-          availableRooms: 3,
-          pendingRequests: 4,
-          upcomingReservations: 7,
-          maintenanceIssues: 2
-        };
-      case 'Member':
-        return {
-          currentAllocation: 'Room 201B',
-          checkInDate: '2024-09-01',
-          checkOutDate: '2024-12-15',
-          requestStatus: 'Approved',
-          upcomingEvents: 3,
-          notifications: 5
-        };
-      default:
-        return {};
-    }
-  };
-
-  const getRecentActivitiesForRole = (role) => {
-    const baseActivities = [
-      {
-        id: 1,
-        type: 'allocation',
-        message: 'New room allocation approved',
-        time: '2 hours ago',
-        icon: CheckCircle,
-        color: 'text-green-600',
-        bg: 'bg-green-100'
-      },
-      {
-        id: 2,
-        type: 'request',
-        message: 'Accommodation request submitted',
-        time: '4 hours ago',
-        icon: Clock,
-        color: 'text-blue-600',
-        bg: 'bg-blue-100'
-      },
-      {
-        id: 3,
-        type: 'maintenance',
-        message: 'Maintenance request resolved',
-        time: '1 day ago',
-        icon: CheckCircle,
-        color: 'text-green-600',
-        bg: 'bg-green-100'
-      },
-      {
-        id: 4,
-        type: 'alert',
-        message: 'Room inspection due',
-        time: '2 days ago',
-        icon: AlertTriangle,
-        color: 'text-yellow-600',
-        bg: 'bg-yellow-100'
-      }
-    ];
-
-    return baseActivities.slice(0, role === 'Member' ? 3 : 5);
-  };
 
   // Modern Stat Card Component
   const StatCard = ({ title, value, icon: Icon, trend, trendValue, color = "blue", subtitle }) => (
@@ -187,15 +125,82 @@ const DashboardPage = () => {
 
   // Modern Activity Item Component
   const ActivityItem = ({ activity }) => {
-    const Icon = activity.icon;
+    // Map icon names from backend to actual icon components
+    const getIconComponent = (iconName) => {
+      const iconMap = {
+        'UserPlus': Users,
+        'LogIn': User,
+        'LogOut': User,
+        'Home': Home,
+        'Edit': Activity,
+        'Trash2': AlertTriangle,
+        'MapPin': MapPin,
+        'Building': Building,
+        'Users': Users,
+        'Calendar': Calendar,
+        'X': AlertTriangle,
+        'AlertTriangle': AlertTriangle,
+        'DollarSign': DollarSign,
+        'FileText': Activity,
+        'Database': Activity,
+        'Activity': Activity,
+        'CheckCircle': CheckCircle,
+        'Info': Activity
+      };
+      return iconMap[iconName] || Activity;
+    };
+
+    // Map priority to colors
+    const getPriorityColors = (priority) => {
+      const colorMap = {
+        'urgent': { bg: 'bg-red-100', color: 'text-red-600' },
+        'high': { bg: 'bg-orange-100', color: 'text-orange-600' },
+        'medium': { bg: 'bg-blue-100', color: 'text-blue-600' },
+        'low': { bg: 'bg-gray-100', color: 'text-gray-600' }
+      };
+      return colorMap[priority] || colorMap['low'];
+    };
+
+    // Get relative time format
+    const getRelativeTime = (timestamp) => {
+      try {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffInMs = now - date;
+        const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        if (diffInMinutes < 60) {
+          return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+        } else if (diffInHours < 24) {
+          return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+        } else {
+          return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+        }
+      } catch {
+        return 'Recently';
+      }
+    };
+
+    const Icon = getIconComponent(activity.icon);
+    const colors = getPriorityColors(activity.priority);
+    
     return (
       <div className="flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-xl transition-colors">
-        <div className={`p-2.5 rounded-xl ${activity.bg}`}>
-          <Icon className={`h-5 w-5 ${activity.color}`} />
+        <div className={`p-2.5 rounded-xl ${colors.bg}`}>
+          <Icon className={`h-5 w-5 ${colors.color}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{activity.message}</p>
-          <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {activity.title || activity.message}
+          </p>
+          <p className="text-xs text-gray-600 mt-1 truncate">
+            {activity.description}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {getRelativeTime(activity.timestamp) || activity.time}
+          </p>
         </div>
         <ChevronRight className="h-4 w-4 text-gray-400" />
       </div>
@@ -613,6 +618,44 @@ const DashboardPage = () => {
             <p className="text-gray-600">Loading your dashboard...</p>
           </div>
         </div>
+      </AdminLayout>
+    );
+  }
+
+  // Show error message when API fails
+  const ErrorMessage = () => {
+    if (!dashboardData.error) return null;
+    
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-sm border border-red-200 p-6">
+          <div className="flex items-center mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-600 mr-3" />
+            <div>
+              <h3 className="text-lg font-medium text-red-800">
+                Unable to Load Dashboard
+              </h3>
+              <p className="text-sm text-red-700 mt-1">
+                {dashboardData.error}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Show error message if API failed
+  if (dashboardData.error) {
+    return (
+      <AdminLayout>
+        <ErrorMessage />
       </AdminLayout>
     );
   }

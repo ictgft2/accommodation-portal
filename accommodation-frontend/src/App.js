@@ -11,9 +11,11 @@ import ConfirmationPage from './pages/Booking/ConfirmationPage';
 import PaymentPage from './pages/Booking/PaymentPage';
 import ProtectedRoute from './components/layout/ProtectedRouteClean';
 import { AuthProvider } from './contexts/authContext';
+import { ToastProvider } from './contexts/ToastContext';
 import ApiTester from './components/ApiTester';
 import ApiConnectionTest from './components/ApiConnectionTest';
 import LoginDebugger from './components/LoginDebugger';
+import AuthDebugger from './components/debug/AuthDebugger';
 
 // Admin Pages
 import DashboardPage from './pages/Admin/DashboardPage';
@@ -36,7 +38,8 @@ function App() {
     <div className="App">
       <Router>
         <AuthProvider>
-        <Routes>
+          <ToastProvider>
+            <Routes>
           {/* Home Route */}
           <Route path="/" element={<HomePage />} />
           
@@ -44,6 +47,7 @@ function App() {
           <Route path="/api-test" element={<ApiTester />} />
           <Route path="/api-connection-test" element={<ApiConnectionTest />} />
           <Route path="/login-debug" element={<LoginDebugger />} />
+          <Route path="/auth-debug" element={<AuthDebugger />} />
           
           {/* Authentication Routes */}
           <Route path="/signup" element={<CreateAccountPage />} />
@@ -251,6 +255,7 @@ function App() {
 
 
         </Routes>
+          </ToastProvider>
         </AuthProvider>
       </Router>
     </div>

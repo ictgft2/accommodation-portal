@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
-import buildingsService from '../../services/buildingsService';
+import { buildingsService } from '../../services/buildingsService';
+import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 import { 
   Plus, 
   Search, 
@@ -17,37 +19,20 @@ import {
   Loader2
 } from 'lucide-react';
 
-// Helper functions used by multiple components
-const getRoomStatusColor = (room) => {
-  if (room.needsMaintenance) return 'bg-red-100 text-red-800';
-  if (room.isOccupied) return 'bg-blue-100 text-blue-800';
-  if (room.isAvailable) return 'bg-green-100 text-green-800';
-  return 'bg-gray-100 text-gray-800';
-};
-
-const getRoomStatus = (room) => {
-  if (room.needsMaintenance) return 'Maintenance';
-  if (room.isOccupied) return 'Occupied';
-  if (room.isAvailable) return 'Available';
-  return 'Unavailable';
-};
-
 const BuildingManagementPage = () => {
+  const { showSuccess, showError } = useToast();
+  const { user } = useAuth();
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateBuildingModal, setShowCreateBuildingModal] = useState(false);
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
   const [showEditBuildingModal, setShowEditBuildingModal] = useState(false);
-  const [showEditRoomModal, setShowEditRoomModal] = useState(false);
-  const [showBuildingDetailsModal, setShowBuildingDetailsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('buildings');
-  const [rooms, setRooms] = useState([]);
-  const [buildingStats, setBuildingStats] = useState({});
+  const [buildingRooms, setBuildingRooms] = useState([]); // For rooms in selected building
+  const [roomsLoading, setRoomsLoading] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -56,9 +41,8 @@ const BuildingManagementPage = () => {
   });
 
   // Fetch buildings from API
-  const fetchBuildings = async (params = {}) => {
+  const fetchBuildings = useCallback(async (params = {}) => {
     setLoading(true);
-    setError('');
     
     try {
       const queryParams = {
@@ -84,37 +68,21 @@ const BuildingManagementPage = () => {
           }));
         }
       } else {
-        setError(result.error || 'Failed to fetch buildings');
+        showError(result.error || 'Failed to fetch buildings');
       }
     } catch (err) {
-      setError('Network error occurred while fetching buildings');
+      const errorMsg = 'Network error occurred while fetching buildings';
+      showError(errorMsg);
       console.error('Buildings fetch error:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Fetch rooms for a specific building
-  const fetchRooms = async (buildingId, params = {}) => {
-    try {
-      const result = await buildingsService.getRooms(buildingId, params);
-      if (result.success) {
-        return result.data.results || result.data;
-      } else {
-        setError(result.error || 'Failed to fetch rooms');
-        return [];
-      }
-    } catch (err) {
-      setError('Failed to fetch rooms');
-      console.error('Rooms fetch error:', err);
-      return [];
-    }
-  };
+  }, [pagination.page, pagination.pageSize, searchTerm, showError]);
 
   // Initial data load
   useEffect(() => {
     fetchBuildings();
-  }, []);
+  }, [fetchBuildings]);
 
   // Search and filtering effects
   useEffect(() => {
@@ -124,11 +92,11 @@ const BuildingManagementPage = () => {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+  }, [searchTerm, fetchBuildings]);
 
   useEffect(() => {
     fetchBuildings();
-  }, [pagination.page]);
+  }, [pagination.page, fetchBuildings]);
 
   // Filter buildings based on search (client-side for immediate feedback)
   const filteredBuildings = buildings.filter(building =>
@@ -144,6 +112,7 @@ const BuildingManagementPage = () => {
   };
 
   const handleEditBuilding = (building) => {
+    console.log('🔧 Opening edit modal for building:', building);
     setSelectedBuilding(building);
     setShowEditBuildingModal(true);
   };
@@ -153,39 +122,70 @@ const BuildingManagementPage = () => {
       try {
         const result = await buildingsService.deleteBuilding(building.id);
         if (result.success) {
+          showSuccess(`Building "${building.name}" deleted successfully`);
           setBuildings(prev => prev.filter(b => b.id !== building.id));
         } else {
-          setError(result.error || 'Failed to delete building');
+          showError(result.error || 'Failed to delete building');
         }
       } catch (err) {
-        setError('Failed to delete building');
+        showError('Network error occurred while deleting building');
         console.error('Delete building error:', err);
       }
     }
   };
 
   const handleSaveBuilding = async (buildingData) => {
+    console.log('🏗️ Saving building:', buildingData);
+    console.log('👤 Current user:', user);
+    
     try {
       let result;
       
       if (selectedBuilding?.id) {
-        // Update existing building
-        result = await buildingsService.updateBuilding(selectedBuilding.id, buildingData);
+        // Update existing building - don't send created_by field
+        const updateData = {
+          name: buildingData.name,
+          location: buildingData.location,
+          description: buildingData.description
+        };
+        
+        console.log('📝 Updating building:', selectedBuilding.id, 'with data:', updateData);
+        result = await buildingsService.updateBuilding(selectedBuilding.id, updateData);
+        
+        if (result.success) {
+          showSuccess('Building updated successfully');
+          setShowEditBuildingModal(false);
+          setSelectedBuilding(null);
+          fetchBuildings(); // Refresh the list
+        } else {
+          console.error('❌ Update failed:', result);
+          showError(result.error || 'Failed to update building');
+        }
       } else {
-        // Create new building
-        result = await buildingsService.createBuilding(buildingData);
-      }
-
-      if (result.success) {
-        setShowCreateBuildingModal(false);
-        setShowEditBuildingModal(false);
-        setSelectedBuilding(null);
-        fetchBuildings(); // Refresh the list
-      } else {
-        setError(result.error || 'Failed to save building');
+        // Create new building - backend will auto-set created_by
+        const createData = {
+          name: buildingData.name,
+          location: buildingData.location,
+          description: buildingData.description
+        };
+        
+        console.log('🆕 Creating building with data:', createData);
+        result = await buildingsService.createBuilding(createData);
+        console.log('✅ Create result:', result);
+        
+        if (result.success) {
+          showSuccess('Building created successfully');
+          setShowCreateBuildingModal(false);
+          setSelectedBuilding(null);
+          fetchBuildings(); // Refresh the list
+        } else {
+          console.error('❌ Create failed:', result);
+          showError(result.error || 'Failed to create building');
+        }
       }
     } catch (err) {
-      setError('Failed to save building');
+      console.error('💥 Network error:', err);
+      showError('Network error occurred while saving building');
       console.error('Save building error:', err);
     }
   };
@@ -199,7 +199,7 @@ const BuildingManagementPage = () => {
   const handleEditRoom = (building, room) => {
     setSelectedBuilding(building);
     setSelectedRoom(room);
-    setShowEditRoomModal(true);
+    setShowCreateRoomModal(true); // Use create modal for edit as well
   };
 
   const handleDeleteRoom = async (building, room) => {
@@ -207,13 +207,15 @@ const BuildingManagementPage = () => {
       try {
         const result = await buildingsService.deleteRoom(building.id, room.id);
         if (result.success) {
-          // Refresh buildings to get updated room counts
-          fetchBuildings();
+          showSuccess(`Room ${room.room_number} deleted successfully`);
+          // Refresh rooms in the modal and buildings list
+          await handleViewRooms(building); // Refresh the rooms modal
+          fetchBuildings(); // Refresh buildings to get updated room counts
         } else {
-          setError(result.error || 'Failed to delete room');
+          showError(result.error || 'Failed to delete room');
         }
       } catch (err) {
-        setError('Failed to delete room');
+        showError('Network error occurred while deleting room');
         console.error('Delete room error:', err);
       }
     }
@@ -225,7 +227,7 @@ const BuildingManagementPage = () => {
       
       if (selectedRoom?.id) {
         // Update existing room
-        result = await buildingsService.updateRoom(selectedRoom.id, roomData);
+        result = await buildingsService.updateRoom(selectedBuilding.id, selectedRoom.id, roomData);
       } else {
         // Create new room
         result = await buildingsService.createRoom(selectedBuilding.id, roomData);
@@ -233,17 +235,30 @@ const BuildingManagementPage = () => {
 
       if (result.success) {
         setShowCreateRoomModal(false);
-        setShowEditRoomModal(false);
         setSelectedRoom(null);
         setSelectedBuilding(null);
         
         // Refresh buildings to get updated room counts
         fetchBuildings();
+        
+        // If we're in the rooms modal, refresh the rooms list
+        if (showRoomsModal) {
+          try {
+            const roomsResult = await buildingsService.getRooms(selectedBuilding.id);
+            if (roomsResult.success) {
+              setBuildingRooms(roomsResult.data.results || []);
+            }
+          } catch (err) {
+            console.error('Failed to refresh rooms:', err);
+          }
+        }
+        
+        showSuccess(selectedRoom ? 'Room updated successfully' : 'Room created successfully');
       } else {
-        setError(result.error || 'Failed to save room');
+        showError(result.error || 'Failed to save room');
       }
     } catch (err) {
-      setError('Failed to save room');
+      showError('Failed to save room');
       console.error('Save room error:', err);
     }
   };
@@ -258,32 +273,58 @@ const BuildingManagementPage = () => {
           b.id === building.id ? { ...b, is_active: !b.is_active } : b
         ));
       } else {
-        setError(result.error || 'Failed to update building status');
+        showError(result.error || 'Failed to update building status');
       }
     } catch (err) {
-      setError('Failed to update building status');
+      showError('Failed to update building status');
       console.error('Toggle building status error:', err);
     }
   };
 
   const handleViewBuildingDetails = async (building) => {
     setSelectedBuilding(building);
-    setShowBuildingDetailsModal(true);
+    setShowRoomsModal(true);
     
-    // Fetch detailed building stats
+    // Load rooms for this building
+    setRoomsLoading(true);
     try {
-      const stats = await buildingsService.getBuildingStats(building.id);
-      if (stats.success) {
-        setBuildingStats(stats.data);
+      const result = await buildingsService.getRooms(building.id);
+      if (result.success) {
+        setBuildingRooms(result.data.results || []);
+      } else {
+        showError('Failed to load rooms');
       }
     } catch (err) {
-      console.error('Failed to fetch building stats:', err);
+      showError('Failed to load rooms');
+      console.error('Load rooms error:', err);
+    } finally {
+      setRoomsLoading(false);
     }
   };
 
-  const handleViewRooms = (building) => {
+  const handleViewRooms = async (building) => {
     setSelectedBuilding(building);
+    setRoomsLoading(true);
+    setBuildingRooms([]);
     setShowRoomsModal(true);
+    
+    try {
+      const result = await buildingsService.getRooms(building.id);
+      
+      if (result.success) {
+        setBuildingRooms(result.data.results || result.data || []);
+        showSuccess(`Loaded ${(result.data.results || result.data || []).length} rooms for ${building.name}`);
+      } else {
+        showError(result.error || 'Failed to fetch rooms');
+        setBuildingRooms([]);
+      }
+    } catch (err) {
+      showError('Network error occurred while fetching rooms');
+      setBuildingRooms([]);
+      console.error('Rooms fetch error:', err);
+    } finally {
+      setRoomsLoading(false);
+    }
   };
 
   const getStatusBadgeColor = (isActive) => {
@@ -432,7 +473,7 @@ const BuildingManagementPage = () => {
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteBuilding(building.id)}
+                    onClick={() => handleDeleteBuilding(building)}
                     className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                     title="Delete Building"
                   >
@@ -461,29 +502,18 @@ const BuildingManagementPage = () => {
       {/* Create/Edit Building Modal */}
       {showCreateBuildingModal && (
         <BuildingFormModal
-          building={selectedBuilding}
+          building={null}
           onClose={() => setShowCreateBuildingModal(false)}
-          onSave={(buildingData) => {
-            if (selectedBuilding) {
-              // Update existing building
-              setBuildings(buildings.map(building => 
-                building.id === selectedBuilding.id ? { ...building, ...buildingData } : building
-              ));
-            } else {
-              // Add new building
-              const newBuilding = {
-                id: Math.max(...buildings.map(b => b.id)) + 1,
-                ...buildingData,
-                total_rooms: 0,
-                available_rooms: 0,
-                rooms: [],
-                created_date: new Date().toISOString().split('T')[0],
-                is_active: true
-              };
-              setBuildings([...buildings, newBuilding]);
-            }
-            setShowCreateBuildingModal(false);
-          }}
+          onSave={handleSaveBuilding}
+        />
+      )}
+
+      {/* Edit Building Modal */}
+      {showEditBuildingModal && selectedBuilding && (
+        <BuildingFormModal
+          building={selectedBuilding}
+          onClose={() => setShowEditBuildingModal(false)}
+          onSave={handleSaveBuilding}
         />
       )}
 
@@ -492,42 +522,11 @@ const BuildingManagementPage = () => {
         <RoomFormModal
           building={selectedBuilding}
           room={selectedRoom}
-          onClose={() => setShowCreateRoomModal(false)}
-          onSave={(roomData) => {
-            if (selectedRoom) {
-              // Update existing room
-              setBuildings(buildings.map(building => 
-                building.id === selectedBuilding.id 
-                  ? {
-                      ...building,
-                      rooms: building.rooms.map(room => 
-                        room.id === selectedRoom.id ? { ...room, ...roomData } : room
-                      )
-                    }
-                  : building
-              ));
-            } else {
-              // Add new room
-              const newRoom = {
-                id: Math.max(...selectedBuilding.rooms.map(r => r.id || 0), 0) + 1,
-                ...roomData,
-                isOccupied: false,
-                isAvailable: true,
-                needsMaintenance: false
-              };
-              setBuildings(buildings.map(building => 
-                building.id === selectedBuilding.id 
-                  ? {
-                      ...building,
-                      rooms: [...building.rooms, newRoom],
-                      total_rooms: building.total_rooms + 1,
-                      available_rooms: building.available_rooms + 1
-                    }
-                  : building
-              ));
-            }
+          onClose={() => {
             setShowCreateRoomModal(false);
+            setSelectedRoom(null);
           }}
+          onSave={handleSaveRoom}
         />
       )}
 
@@ -535,6 +534,8 @@ const BuildingManagementPage = () => {
       {showRoomsModal && selectedBuilding && (
         <RoomsDetailModal
           building={selectedBuilding}
+          rooms={buildingRooms}
+          loading={roomsLoading}
           onClose={() => setShowRoomsModal(false)}
           onEditRoom={handleEditRoom}
           onDeleteRoom={handleDeleteRoom}
@@ -553,6 +554,17 @@ const BuildingFormModal = ({ building, onClose, onSave }) => {
   });
 
   const [errors, setErrors] = useState({});
+
+  // Update form data when building prop changes
+  useEffect(() => {
+    console.log('🏢 Building data received in modal:', building);
+    setFormData({
+      name: building?.name || '',
+      description: building?.description || '',
+      location: building?.location || ''
+    });
+    setErrors({}); // Clear any previous errors
+  }, [building]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -671,29 +683,31 @@ const BuildingFormModal = ({ building, onClose, onSave }) => {
 // Room Form Modal Component
 const RoomFormModal = ({ building, room, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    roomNumber: room?.roomNumber || '',
-    roomType: room?.roomType || 'Standard Room',
-    capacity: room?.capacity || 1
+    room_number: room?.room_number || '',
+    capacity: room?.capacity || 1,
+    has_toilet: room?.has_toilet || false,
+    has_washroom: room?.has_washroom || false
   });
 
   const [errors, setErrors] = useState({});
 
-  const roomTypes = [
-    'Standard Room',
-    'Pastor Suite',
-    'Guest Room',
-    'Double Room',
-    'Single Room',
-    'Dormitory',
-    'Conference Room'
-  ];
+  useEffect(() => {
+    if (room) {
+      setFormData({
+        room_number: room.room_number || '',
+        capacity: room.capacity || 1,
+        has_toilet: room.has_toilet || false,
+        has_washroom: room.has_washroom || false
+      });
+    }
+  }, [room]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
     // Validation
     const newErrors = {};
-    if (!formData.roomNumber) newErrors.roomNumber = 'Room number is required';
+    if (!formData.room_number) newErrors.room_number = 'Room number is required';
     if (!formData.capacity || formData.capacity < 1) newErrors.capacity = 'Capacity must be at least 1';
 
     if (Object.keys(newErrors).length > 0) {
@@ -705,10 +719,10 @@ const RoomFormModal = ({ building, room, onClose, onSave }) => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({ 
       ...prev, 
-      [name]: name === 'capacity' ? parseInt(value) || 0 : value 
+      [name]: type === 'checkbox' ? checked : (name === 'capacity' ? parseInt(value) || 0 : value)
     }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
@@ -738,31 +752,15 @@ const RoomFormModal = ({ building, room, onClose, onSave }) => {
             </label>
             <input
               type="text"
-              name="roomNumber"
-              value={formData.roomNumber}
+              name="room_number"
+              value={formData.room_number}
               onChange={handleInputChange}
               placeholder="e.g., 101"
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                errors.roomNumber ? 'border-red-300' : 'border-gray-300'
+                errors.room_number ? 'border-red-300' : 'border-gray-300'
               }`}
             />
-            {errors.roomNumber && <p className="text-red-500 text-xs mt-1">{errors.roomNumber}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Room Type *
-            </label>
-            <select
-              name="roomType"
-              value={formData.roomType}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            >
-              {roomTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+            {errors.room_number && <p className="text-red-500 text-xs mt-1">{errors.room_number}</p>}
           </div>
 
           <div>
@@ -781,6 +779,34 @@ const RoomFormModal = ({ building, room, onClose, onSave }) => {
               }`}
             />
             {errors.capacity && <p className="text-red-500 text-xs mt-1">{errors.capacity}</p>}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="has_toilet"
+                checked={formData.has_toilet}
+                onChange={handleInputChange}
+                className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500"
+              />
+              <label className="ml-2 text-sm font-medium text-gray-700">
+                Has Private Toilet
+              </label>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="has_washroom"
+                checked={formData.has_washroom}
+                onChange={handleInputChange}
+                className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500"
+              />
+              <label className="ml-2 text-sm font-medium text-gray-700">
+                Has Private Washroom
+              </label>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">
@@ -805,13 +831,13 @@ const RoomFormModal = ({ building, room, onClose, onSave }) => {
 };
 
 // Rooms Detail Modal Component
-const RoomsDetailModal = ({ building, onClose, onEditRoom, onDeleteRoom }) => {
+const RoomsDetailModal = ({ building, rooms = [], loading = false, onClose, onEditRoom, onDeleteRoom }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">
-            {building.name} - Rooms ({building.rooms.length})
+            {building.name} - Rooms ({loading ? 'Loading...' : rooms.length})
           </h3>
           <button
             onClick={onClose}
@@ -823,17 +849,28 @@ const RoomsDetailModal = ({ building, onClose, onEditRoom, onDeleteRoom }) => {
         </div>
 
         <div className="p-6">
-          {building.rooms.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <span className="ml-2 text-gray-600">Loading rooms...</span>
+            </div>
+          ) : rooms.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {building.rooms.map((room) => (
+              {rooms.map((room) => (
                 <div key={room.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h4 className="font-semibold text-gray-800">Room {room.roomNumber}</h4>
-                      <p className="text-sm text-gray-600">{room.roomType}</p>
+                      <h4 className="font-semibold text-gray-800">Room {room.room_number}</h4>
+                      <p className="text-sm text-gray-600">
+                        {room.has_toilet && room.has_washroom ? 'En-suite' : 
+                         room.has_toilet ? 'Private Toilet' : 
+                         room.has_washroom ? 'Private Washroom' : 'Basic Room'}
+                      </p>
                     </div>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoomStatusColor(room)}`}>
-                      {getRoomStatus(room)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      room.is_allocated ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {room.is_allocated ? 'Occupied' : 'Available'}
                     </span>
                   </div>
                   
@@ -850,7 +887,7 @@ const RoomsDetailModal = ({ building, onClose, onEditRoom, onDeleteRoom }) => {
                       Edit
                     </button>
                     <button
-                      onClick={() => onDeleteRoom(room.id)}
+                      onClick={() => onDeleteRoom(building, room)}
                       className="px-3 py-1.5 text-xs text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors"
                     >
                       Delete

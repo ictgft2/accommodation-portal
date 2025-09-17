@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import allocationService from '../../services/allocationService';
-import { useToast } from '../../contexts/ToastContext';
 import { 
   Plus, 
   Search, 
@@ -10,6 +9,7 @@ import {
   Trash2, 
   Eye,
   Calendar,
+  MapPin,
   User,
   Building,
   Clock,
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 
 const AllocationManagementPage = () => {
-  const { showSuccess, showError } = useToast();
   const [allocations, setAllocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,7 +30,20 @@ const AllocationManagementPage = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Fetch allocations from API
-  const fetchAllocations = useCallback(async (params = {}) => {
+  useEffect(() => {
+    fetchAllocations();
+  }, []);
+
+  // Search and filter effect
+  useEffect(() => {
+    const delayedSearch = setTimeout(() => {
+      fetchAllocations();
+    }, 300); // Debounce search
+
+    return () => clearTimeout(delayedSearch);
+  }, [searchTerm, statusFilter, typeFilter]);
+
+  const fetchAllocations = async (params = {}) => {
     try {
       setLoading(true);
       setError(null);
@@ -54,82 +66,39 @@ const AllocationManagementPage = () => {
       const response = await allocationService.getAllocations(queryParams);
       
       if (response.success) {
-        // Handle different response structures
-        let dataArray;
+        // Transform API data to match frontend expectations
+        const transformedAllocations = response.data.map(allocation => ({
+          id: allocation.id,
+          roomNumber: allocation.room?.name || allocation.room?.number || 'Unknown',
+          building: allocation.room?.building?.name || 'Unknown Building',
+          allocationType: allocation.allocation_type,
+          allocatedTo: allocation.allocated_to_display,
+          allocatedBy: allocation.allocated_by?.full_name || allocation.allocated_by?.email || 'Unknown',
+          serviceUnit: allocation.service_unit?.name || null,
+          startDate: allocation.start_date,
+          endDate: allocation.end_date,
+          isActive: allocation.is_active,
+          status: allocation.is_active ? 'Active' : 'Inactive',
+          allocationDate: allocation.allocation_date,
+          notes: allocation.notes,
+          capacity: allocation.room?.capacity || 1,
+          occupancy: 1, // This would need to be calculated from actual occupancy data
+          // Keep original data for detailed view
+          originalData: allocation
+        }));
         
-        // Check if response.data is an array
-        if (Array.isArray(response.data)) {
-          dataArray = response.data;
-        }
-        // Check if response.data.results is an array (paginated response)
-        else if (response.data && Array.isArray(response.data.results)) {
-          dataArray = response.data.results;
-        }
-        // Check if response.data has any other array property
-        else if (response.data && typeof response.data === 'object') {
-          // Log the structure to help debug
-          console.log('Unexpected response structure:', response.data);
-          dataArray = [];
-        }
-        // Fallback
-        else {
-          console.log('Response data is not in expected format:', response.data);
-          dataArray = [];
-        }
-
-        const transformedAllocations = dataArray.map(allocation => {
-          console.log('Raw allocation data:', allocation);
-          const transformed = {
-            id: allocation.id,
-            roomNumber: allocation.room?.room_number || 'Unknown',
-            building: allocation.room?.building_name || 'Unknown Building',
-            allocationType: allocation.allocation_type,
-            allocatedTo: allocation.allocated_to_display?.replace(':', ' -') || 'Unknown',
-            allocatedBy: allocation.allocated_by?.full_name || allocation.allocated_by?.email || 'Unknown',
-            serviceUnit: allocation.service_unit?.name || null,
-            startDate: allocation.start_date,
-            endDate: allocation.end_date,
-            isActive: allocation.is_active,
-            status: allocation.is_active ? 'Active' : 'Inactive',
-            allocationDate: allocation.allocation_date,
-            notes: allocation.notes,
-            capacity: allocation.room?.capacity || 1,
-            occupancy: allocation.service_unit?.member_count || 1, // Use service unit member count as occupancy
-            // Keep original data for detailed view
-            originalData: allocation
-          };
-          console.log('Transformed allocation:', transformed);
-          return transformed;
-        });
         setAllocations(transformedAllocations);
       } else {
-        const errorMessage = response.error || 'Failed to fetch allocations';
-        setError(errorMessage);
-        showError(errorMessage);
+        setError(response.error || 'Failed to fetch allocations');
         console.error('Failed to fetch allocations:', response.error);
       }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred while fetching allocations';
-      setError(errorMessage);
-      showError(errorMessage);
+      setError('An unexpected error occurred');
       console.error('Error fetching allocations:', err);
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, typeFilter]);
-
-  useEffect(() => {
-    fetchAllocations();
-  }, [fetchAllocations]);
-
-  // Search and filter effect
-  useEffect(() => {
-    const delayedSearch = setTimeout(() => {
-      fetchAllocations();
-    }, 300); // Debounce search
-
-    return () => clearTimeout(delayedSearch);
-  }, [fetchAllocations]);
+  };
 
   // Filter allocations based on search and filters (now handled by API)
   const filteredAllocations = allocations;
@@ -480,10 +449,7 @@ const AllocationManagementPage = () => {
             fetchAllocations();
             setShowCreateModal(false);
             setSelectedAllocation(null);
-            showSuccess('Allocation saved successfully!');
           }}
-          showSuccess={showSuccess}
-          showError={showError}
         />
       )}
 
@@ -501,374 +467,35 @@ const AllocationManagementPage = () => {
   );
 };
 
-// Modal Components
-const CreateAllocationModal = ({ allocation, onClose, onSave, showSuccess, showError }) => {
-  const [formData, setFormData] = useState({
-    roomId: allocation?.originalData?.room?.id || '',
-    userId: allocation?.originalData?.user?.id || '',
-    serviceUnitId: allocation?.originalData?.service_unit?.id || '',
-    allocationType: allocation?.allocationType || 'Individual',
-    startDate: allocation?.startDate || '',
-    endDate: allocation?.endDate || '',
-    notes: allocation?.notes || ''
-  });
-  
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [rooms, setRooms] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [serviceUnits, setServiceUnits] = useState([]);
-
-  // Fetch dropdown options
-  useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        // Fetch rooms - add pagination parameters to get all rooms
-        const roomsResponse = await fetch('http://localhost:8100/api/buildings/rooms/?page_size=1000', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (!roomsResponse.ok) {
-          throw new Error(`Failed to fetch rooms: ${roomsResponse.status}`);
-        }
-        const roomsData = await roomsResponse.json();
-        
-        // Fetch users - add pagination parameters to get all users
-        const usersResponse = await fetch('http://localhost:8100/api/auth/users/?page_size=1000', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (!usersResponse.ok) {
-          throw new Error(`Failed to fetch users: ${usersResponse.status}`);
-        }
-        const usersData = await usersResponse.json();
-        
-        // Fetch service units - add pagination parameters to get all service units
-        const serviceUnitsResponse = await fetch('http://localhost:8100/api/service-units/?page_size=1000', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (!serviceUnitsResponse.ok) {
-          throw new Error(`Failed to fetch service units: ${serviceUnitsResponse.status}`);
-        }
-        const serviceUnitsData = await serviceUnitsResponse.json();
-        
-        setRooms(roomsData.results || roomsData || []);
-        setUsers(usersData.results || usersData || []);
-        setServiceUnits(serviceUnitsData.results || serviceUnitsData || []);
-        
-        console.log('Fetched data:', {
-          rooms: roomsData.results?.length || roomsData.length || 0,
-          users: usersData.results?.length || usersData.length || 0,
-          serviceUnits: serviceUnitsData.results?.length || serviceUnitsData.length || 0
-        });
-        
-      } catch (error) {
-        console.error('Error fetching options:', error);
-        if (showError) {
-          showError('Failed to load form options. Please try again.');
-        }
-        // Set empty arrays as fallback
-        setRooms([]);
-        setUsers([]);
-        setServiceUnits([]);
-      }
-    };
-    
-    fetchOptions();
-  }, [showError]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.roomId) newErrors.roomId = 'Room is required';
-    if (!formData.allocationType) newErrors.allocationType = 'Allocation type is required';
-    if (!formData.startDate) newErrors.startDate = 'Start date is required';
-    
-    // For Individual allocations, user is required
-    if (formData.allocationType === 'Individual' && !formData.userId) {
-      newErrors.userId = 'User is required for individual allocations';
-    }
-    
-    // For ServiceUnit allocations, service unit is required
-    if (formData.allocationType === 'ServiceUnit' && !formData.serviceUnitId) {
-      newErrors.serviceUnitId = 'Service unit is required for service unit allocations';
-    }
-    
-    // End date should be after start date if provided
-    if (formData.endDate && formData.startDate && new Date(formData.endDate) <= new Date(formData.startDate)) {
-      newErrors.endDate = 'End date must be after start date';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    setLoading(true);
-    
-    try {
-      const allocationData = {
-        room_id: parseInt(formData.roomId),
-        allocation_type: formData.allocationType,
-        start_date: formData.startDate,
-        end_date: formData.endDate || null,
-        notes: formData.notes
-      };
-      
-      // Add user or service unit based on allocation type
-      if (formData.allocationType === 'Individual' && formData.userId) {
-        allocationData.user_id = parseInt(formData.userId);
-      }
-      if (formData.allocationType === 'ServiceUnit' && formData.serviceUnitId) {
-        allocationData.service_unit_id = parseInt(formData.serviceUnitId);
-      }
-      
-      let response;
-      if (allocation) {
-        // Edit existing allocation
-        response = await allocationService.updateAllocation(allocation.id, allocationData);
-      } else {
-        // Create new allocation
-        response = await allocationService.createAllocation(allocationData);
-      }
-      
-      if (response.success) {
-        if (showSuccess) {
-          showSuccess(allocation ? 'Allocation updated successfully!' : 'Allocation created successfully!');
-        }
-        onSave(response.data);
-      } else {
-        const errorMessage = response.error || 'Failed to save allocation';
-        setErrors({ submit: errorMessage });
-        if (showError) {
-          showError(errorMessage);
-        }
-      }
-    } catch (error) {
-      const errorMessage = 'An unexpected error occurred';
-      setErrors({ submit: errorMessage });
-      if (showError) {
-        showError(errorMessage);
-      }
-      console.error('Error saving allocation:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+// Modal Components (These would need to be implemented with proper forms and API calls)
+const CreateAllocationModal = ({ allocation, onClose, onSave }) => {
+  // This would contain the form for creating/editing allocations
+  // For now, just showing placeholder
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+        <div className="p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
             {allocation ? 'Edit Allocation' : 'Create New Allocation'}
           </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <span className="sr-only">Close</span>
-            &#x2715;
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errors.submit && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{errors.submit}</p>
-            </div>
-          )}
-
-          {/* Room Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Room *
-            </label>
-            <select
-              name="roomId"
-              value={formData.roomId}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                errors.roomId ? 'border-red-300' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Select a room</option>
-              {rooms.map(room => (
-                <option key={room.id} value={room.id}>
-                  {room.building?.name || room.building_name || 'Unknown Building'} - Room {room.room_number} (Capacity: {room.capacity})
-                </option>
-              ))}
-            </select>
-            {errors.roomId && <p className="text-sm text-red-600 mt-1">{errors.roomId}</p>}
-          </div>
-
-          {/* Allocation Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Allocation Type *
-            </label>
-            <select
-              name="allocationType"
-              value={formData.allocationType}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                errors.allocationType ? 'border-red-300' : 'border-gray-300'
-              }`}
-            >
-              <option value="Individual">Individual</option>
-              <option value="ServiceUnit">Service Unit</option>
-              <option value="Guest">Guest</option>
-            </select>
-            {errors.allocationType && <p className="text-sm text-red-600 mt-1">{errors.allocationType}</p>}
-          </div>
-
-          {/* User Selection (for Individual allocations) */}
-          {formData.allocationType === 'Individual' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                User *
-              </label>
-              <select
-                name="userId"
-                value={formData.userId}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                  errors.userId ? 'border-red-300' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Select a user</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.first_name} {user.last_name} ({user.email})
-                  </option>
-                ))}
-              </select>
-              {errors.userId && <p className="text-sm text-red-600 mt-1">{errors.userId}</p>}
-            </div>
-          )}
-
-          {/* Service Unit Selection (for ServiceUnit allocations) */}
-          {formData.allocationType === 'ServiceUnit' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Service Unit *
-              </label>
-              <select
-                name="serviceUnitId"
-                value={formData.serviceUnitId}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                  errors.serviceUnitId ? 'border-red-300' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Select a service unit</option>
-                {serviceUnits.map(unit => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </option>
-                ))}
-              </select>
-              {errors.serviceUnitId && <p className="text-sm text-red-600 mt-1">{errors.serviceUnitId}</p>}
-            </div>
-          )}
-
-          {/* Start Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date *
-            </label>
-            <input
-              type="date"
-              name="startDate"
-              value={formData.startDate}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                errors.startDate ? 'border-red-300' : 'border-gray-300'
-              }`}
-            />
-            {errors.startDate && <p className="text-sm text-red-600 mt-1">{errors.startDate}</p>}
-          </div>
-
-          {/* End Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              End Date (Optional)
-            </label>
-            <input
-              type="date"
-              name="endDate"
-              value={formData.endDate}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
-                errors.endDate ? 'border-red-300' : 'border-gray-300'
-              }`}
-            />
-            {errors.endDate && <p className="text-sm text-red-600 mt-1">{errors.endDate}</p>}
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes (Optional)
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleInputChange}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              placeholder="Any additional notes about this allocation..."
-            />
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex justify-end space-x-3 pt-4">
+          <p className="text-gray-600 mb-4">
+            This modal would contain the allocation form. Implementation pending.
+          </p>
+          <div className="flex justify-end space-x-3">
             <button
-              type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => onSave({})}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
             >
-              {loading ? 'Saving...' : (allocation ? 'Update Allocation' : 'Create Allocation')}
+              Save
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

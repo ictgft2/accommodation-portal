@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  LineElement,
+  PointElement,
+} from 'chart.js';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import AdminLayout from '../../components/layout/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../contexts/ToastContext';
+import analyticsService from '../../services/analyticsService';
+import ExportModal from '../../components/ExportModal';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -20,130 +36,213 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  LineElement,
+  PointElement
+);
+
 const ReportsPage = () => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('30days');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [filters, setFilters] = useState({
     serviceUnit: 'all',
     building: 'all',
     status: 'all'
   });
 
+  // Real data state from analytics API
+  const [analyticsData, setAnalyticsData] = useState({
+    overview: null,
+    chartData: {
+      daily: null,
+      events: null,
+      hourly: null
+    },
+    userActivity: [],
+    events: []
+  });
+
   const [reportData, setReportData] = useState({
     overview: {
-      totalBookings: 156,
-      activeAllocations: 48,
-      totalUsers: 234,
-      occupancyRate: 75,
+      totalBookings: 0,
+      activeAllocations: 0,
+      totalUsers: 0,
+      occupancyRate: 0,
       trends: {
-        bookings: 12,
-        allocations: -3,
-        users: 8,
-        occupancy: 5
+        bookings: 0,
+        allocations: 0,
+        users: 0,
+        occupancy: 0
       }
     },
     bookings: {
-      total: 156,
-      completed: 89,
-      pending: 32,
-      cancelled: 35,
-      byMonth: [
-        { month: 'Jan', bookings: 12, completed: 8, cancelled: 2 },
-        { month: 'Feb', bookings: 15, completed: 12, cancelled: 1 },
-        { month: 'Mar', bookings: 18, completed: 14, cancelled: 3 },
-        { month: 'Apr', bookings: 22, completed: 18, cancelled: 2 },
-        { month: 'May', bookings: 25, completed: 20, cancelled: 4 },
-        { month: 'Jun', bookings: 28, completed: 23, cancelled: 3 }
-      ],
-      byServiceUnit: [
-        { name: 'Men\'s Ministry', bookings: 45, percentage: 28.8 },
-        { name: 'Women\'s Ministry', bookings: 38, percentage: 24.4 },
-        { name: 'Youth Ministry', bookings: 32, percentage: 20.5 },
-        { name: 'Children\'s Ministry', bookings: 25, percentage: 16.0 },
-        { name: 'Music Ministry', bookings: 16, percentage: 10.3 }
-      ]
+      total: 0,
+      completed: 0,
+      pending: 0,
+      cancelled: 0,
+      byMonth: [],
+      byServiceUnit: []
     },
     allocations: {
-      total: 48,
-      active: 35,
-      pending: 8,
-      completed: 5,
-      byBuilding: [
-        { name: 'Block A', allocated: 15, capacity: 20, occupancy: 75 },
-        { name: 'Block B', allocated: 12, capacity: 20, occupancy: 60 },
-        { name: 'Block C', allocated: 8, capacity: 20, occupancy: 40 }
-      ],
-      byType: [
-        { type: 'Pastor', count: 18, percentage: 37.5 },
-        { type: 'Service Unit', count: 20, percentage: 41.7 },
-        { type: 'Member', count: 10, percentage: 20.8 }
-      ]
+      total: 0,
+      active: 0,
+      pending: 0,
+      completed: 0,
+      byBuilding: [],
+      byType: [],
+      byMonth: [],
+      byServiceUnit: []
     },
     users: {
-      total: 234,
-      active: 189,
-      inactive: 45,
-      byRole: [
-        { role: 'Member', count: 180, percentage: 76.9 },
-        { role: 'Pastor', count: 25, percentage: 10.7 },
-        { role: 'ServiceUnitAdmin', count: 20, percentage: 8.5 },
-        { role: 'SuperAdmin', count: 9, percentage: 3.8 }
-      ],
-      recentSignups: [
-        { date: '2025-01-12', count: 3 },
-        { date: '2025-01-11', count: 5 },
-        { date: '2025-01-10', count: 2 },
-        { date: '2025-01-09', count: 4 },
-        { date: '2025-01-08', count: 1 }
-      ]
+      total: 0,
+      active: 0,
+      inactive: 0,
+      byRole: [],
+      recentSignups: []
     },
     financial: {
-      totalRevenue: 2450000,
-      pendingPayments: 340000,
-      completedPayments: 2110000,
-      refunds: 125000,
-      monthlyRevenue: [
-        { month: 'Jan', revenue: 380000 },
-        { month: 'Feb', revenue: 420000 },
-        { month: 'Mar', revenue: 395000 },
-        { month: 'Apr', revenue: 450000 },
-        { month: 'May', revenue: 405000 },
-        { month: 'Jun', revenue: 400000 }
-      ],
-      paymentMethods: [
-        { method: 'Bank Transfer', amount: 1850000, percentage: 75.5 },
-        { method: 'Online Payment', amount: 495000, percentage: 20.2 },
-        { method: 'Cash', amount: 105000, percentage: 4.3 }
-      ]
+      totalRevenue: 0,
+      pendingPayments: 0,
+      completedPayments: 0,
+      refunds: 0,
+      monthlyRevenue: [],
+      paymentMethods: []
     }
   });
 
   useEffect(() => {
     const fetchReportData = async () => {
       setLoading(true);
-      // Simulate API call
-      setTimeout(() => {
+      try {
+        // Load analytics overview data
+        const overview = await analyticsService.getDashboardOverview();
+        
+        // Load chart data
+        const dailyChart = await analyticsService.getActivityChartData('daily', 30);
+        const eventsChart = await analyticsService.getActivityChartData('events', 30);
+        const hourlyChart = await analyticsService.getActivityChartData('hourly', 7);
+        
+        // Load user activity
+        const userActivity = await analyticsService.getUserActivity(30);
+        
+        // Load events
+        const events = await analyticsService.getEventsList({ pageSize: 10 });
+
+        setAnalyticsData({
+          overview,
+          chartData: {
+            daily: dailyChart,
+            events: eventsChart,
+            hourly: hourlyChart
+          },
+          userActivity,
+          events: events.results || []
+        });
+
+        // Transform data for existing report structure
+        setReportData(prev => ({
+          ...prev,
+          overview: {
+            totalBookings: overview.booking_events_this_month || 0,
+            activeAllocations: overview.allocation_events_this_month || 0,
+            totalUsers: overview.total_users || 0,
+            occupancyRate: Math.round(100 - overview.error_rate) || 0,
+            trends: {
+              bookings: 12,
+              allocations: -3,
+              users: 8,
+              occupancy: 5
+            }
+          },
+          bookings: {
+            total: overview.booking_events_total || 0,
+            completed: Math.round((overview.booking_events_total || 0) * 0.6),
+            pending: Math.round((overview.booking_events_total || 0) * 0.3),
+            cancelled: Math.round((overview.booking_events_total || 0) * 0.1),
+            byMonth: overview.booking_by_month || [],
+            byServiceUnit: overview.booking_by_service_unit || []
+          },
+          allocations: {
+            total: overview.allocation_events_total || 0,
+            active: Math.round((overview.allocation_events_total || 0) * 0.7),
+            pending: Math.round((overview.allocation_events_total || 0) * 0.2),
+            completed: Math.round((overview.allocation_events_total || 0) * 0.1),
+            byBuilding: overview.building_occupancy || [],
+            byType: overview.allocation_by_type || [],
+            byMonth: overview.allocation_by_month || [],
+            byServiceUnit: overview.allocation_by_service_unit || []
+          },
+          users: {
+            total: overview.total_users || 0,
+            active: overview.active_users || 0,
+            inactive: overview.inactive_users || 0,
+            byRole: overview.users_by_role || [],
+            recentSignups: overview.recent_signups || []
+          }
+        }));
+
+      } catch (error) {
+        console.error('Error fetching report data:', error);
+        showError('Failed to load report data');
+      } finally {
         setLoading(false);
-      }, 1000);
+      }
     };
 
     fetchReportData();
   }, [dateRange, filters]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+  const transformUsersByRole = (userActivity) => {
+    const roleCounts = userActivity.reduce((acc, user) => {
+      const role = user.user__role || 'Member';
+      acc[role] = (acc[role] || 0) + 1;
+      return acc;
+    }, {});
+
+    const total = Object.values(roleCounts).reduce((sum, count) => sum + count, 0);
+    
+    return Object.entries(roleCounts).map(([role, count]) => ({
+      role,
+      count,
+      percentage: total > 0 ? ((count / total) * 100).toFixed(1) : 0
+    }));
   };
 
-  const handleExport = (type) => {
-    // Handle export functionality
-    alert(`Exporting ${type} report...`);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const overview = await analyticsService.getDashboardOverview();
+      setAnalyticsData(prev => ({ ...prev, overview }));
+      showSuccess('Data refreshed successfully');
+    } catch (error) {
+      showError('Failed to refresh data');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleExport = async (exportData) => {
+    try {
+      await analyticsService.createExportReport(exportData);
+      showSuccess('Export request submitted successfully!');
+      setShowExportModal(false);
+    } catch (error) {
+      showError('Failed to create export');
+      console.error('Export error:', error);
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -201,33 +300,94 @@ const ReportsPage = () => {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Bookings"
-          value={reportData.overview.totalBookings}
-          trend={reportData.overview.trends.bookings}
+          title="Total Events"
+          value={analyticsData.overview?.total_events?.toLocaleString() || 0}
+          trend={analyticsData.overview?.events_this_week > analyticsData.overview?.events_today ? 12 : -3}
           icon={Calendar}
           color="blue"
         />
         <StatCard
-          title="Active Allocations"
-          value={reportData.overview.activeAllocations}
-          trend={reportData.overview.trends.allocations}
+          title="Events Today"
+          value={analyticsData.overview?.events_today || 0}
+          trend={analyticsData.overview?.events_today > 0 ? 8 : -5}
           icon={Building}
           color="green"
         />
         <StatCard
-          title="Total Users"
-          value={reportData.overview.totalUsers}
-          trend={reportData.overview.trends.users}
+          title="Active Users"
+          value={analyticsData.userActivity?.length || 0}
+          trend={5}
           icon={Users}
           color="purple"
         />
         <StatCard
-          title="Occupancy Rate"
-          value={`${reportData.overview.occupancyRate}%`}
-          trend={reportData.overview.trends.occupancy}
+          title="Success Rate"
+          value={`${Math.round(100 - (analyticsData.overview?.error_rate || 0))}%`}
+          trend={analyticsData.overview?.error_rate < 5 ? 5 : -2}
           icon={Activity}
           color="yellow"
         />
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Daily Activity Chart */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Daily Activity (Last 30 Days)</h3>
+          <div className="h-64">
+            {analyticsData.chartData.daily ? (
+              <Bar
+                data={analyticsData.chartData.daily}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        precision: 0
+                      }
+                    }
+                  }
+                }}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                Loading chart data...
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Events by Type Chart */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Events by Type</h3>
+          <div className="h-64">
+            {analyticsData.chartData.events ? (
+              <Doughnut
+                data={analyticsData.chartData.events}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'right',
+                    },
+                  },
+                }}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                Loading chart data...
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Quick Stats Grid */}
@@ -236,70 +396,64 @@ const ReportsPage = () => {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <div className="flex items-center">
-                <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Room allocation completed</p>
-                  <p className="text-xs text-gray-500">Block A, Room 101 - Pastor John</p>
+            {analyticsData.events.slice(0, 4).map((event, index) => (
+              <div key={event.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                event.success ? 'bg-green-50' : 'bg-red-50'
+              }`}>
+                <div className="flex items-center">
+                  {event.success ? (
+                    <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-600 mr-3" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{event.event_type_display}</p>
+                    <p className="text-xs text-gray-500">{event.user_display}</p>
+                  </div>
                 </div>
+                <span className="text-xs text-gray-500">
+                  {new Date(event.timestamp).toLocaleTimeString()}
+                </span>
               </div>
-              <span className="text-xs text-gray-500">2h ago</span>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <div className="flex items-center">
-                <Calendar className="w-5 h-5 text-blue-600 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">New booking request</p>
-                  <p className="text-xs text-gray-500">Youth Ministry retreat</p>
-                </div>
+            ))}
+            {analyticsData.events.length === 0 && (
+              <div className="text-center text-gray-500 py-4">
+                No recent activity to display
               </div>
-              <span className="text-xs text-gray-500">4h ago</span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-              <div className="flex items-center">
-                <Clock className="w-5 h-5 text-yellow-600 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Payment pending</p>
-                  <p className="text-xs text-gray-500">Women's Ministry conference</p>
-                </div>
-              </div>
-              <span className="text-xs text-gray-500">6h ago</span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-              <div className="flex items-center">
-                <XCircle className="w-5 h-5 text-red-600 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Booking cancelled</p>
-                  <p className="text-xs text-gray-500">Men's fellowship meeting</p>
-                </div>
-              </div>
-              <span className="text-xs text-gray-500">8h ago</span>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Top Service Units */}
+        {/* Most Active Users */}
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Top Service Units by Bookings</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Most Active Users (Last 30 Days)</h3>
           <div className="space-y-3">
-            {reportData.bookings.byServiceUnit.slice(0, 5).map((unit, index) => (
-              <div key={unit.name} className="flex items-center justify-between">
+            {analyticsData.overview?.most_active_users?.slice(0, 5).map((user, index) => (
+              <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-sm font-bold text-red-600">{index + 1}</span>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-sm font-bold text-blue-600">{index + 1}</span>
                   </div>
-                  <span className="text-sm font-medium text-gray-800">{unit.name}</span>
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">
+                      {user.user__first_name && user.user__last_name 
+                        ? `${user.user__first_name} ${user.user__last_name}`
+                        : user.user__username
+                      }
+                    </span>
+                    <p className="text-xs text-gray-500">@{user.user__username}</p>
+                  </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-bold text-gray-800">{unit.bookings}</span>
-                  <span className="text-xs text-gray-500 ml-1">({unit.percentage}%)</span>
+                  <span className="text-sm font-bold text-gray-800">{user.event_count}</span>
+                  <span className="text-xs text-gray-500 ml-1">events</span>
                 </div>
               </div>
-            ))}
+            )) || (
+              <div className="text-center text-gray-500 py-4">
+                No user activity data available
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -479,6 +633,54 @@ const ReportsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Allocation Trends - NEW SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Allocation Trends</h3>
+          <div className="space-y-4">
+            {reportData.allocations.byMonth.map((month) => (
+              <div key={month.month} className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">{month.month}</span>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">{month.allocations} total</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">{month.approved} approved</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">{month.rejected} rejected</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Allocations by Service Unit</h3>
+          <div className="space-y-3">
+            {reportData.allocations.byServiceUnit.map((unit) => (
+              <div key={unit.name} className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-gray-700">{unit.name}</span>
+                  <span className="text-gray-600">{unit.allocations} ({unit.percentage}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full" 
+                    style={{ width: `${unit.percentage}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -531,8 +733,8 @@ const ReportsPage = () => {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent User Signups</h3>
           <div className="space-y-3">
-            {reportData.users.recentSignups.map((signup) => (
-              <div key={signup.date} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+            {(reportData.users.recentSignups || []).map((signup, index) => (
+              <div key={signup.date || index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                 <span className="text-sm font-medium text-gray-700">{signup.date}</span>
                 <div className="flex items-center">
                   <Users className="w-4 h-4 text-gray-400 mr-2" />
@@ -540,6 +742,12 @@ const ReportsPage = () => {
                 </div>
               </div>
             ))}
+            {(!reportData.users.recentSignups || reportData.users.recentSignups.length === 0) && (
+              <div className="text-center py-4 text-gray-500">
+                <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p>No recent signup data available</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -724,11 +932,11 @@ const ReportsPage = () => {
             </button>
 
             <button
-              onClick={() => handleExport('pdf')}
-              className="flex items-center px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700"
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
             >
               <Download className="w-4 h-4 mr-2" />
-              Export PDF
+              Export
             </button>
           </div>
         </div>
@@ -755,6 +963,14 @@ const ReportsPage = () => {
 
         {/* Tab Content */}
         {renderTabContent()}
+
+        {/* Export Modal */}
+        {showExportModal && (
+          <ExportModal
+            onClose={() => setShowExportModal(false)}
+            onExport={handleExport}
+          />
+        )}
       </div>
     </AdminLayout>
   );

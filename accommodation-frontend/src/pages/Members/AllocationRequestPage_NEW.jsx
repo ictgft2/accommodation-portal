@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/layout/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import allocationService from '../../services/allocationService';
 import { 
   Send, 
   Calendar, 
+  MapPin, 
+  Users, 
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
+  FileText,
   Eye,
   Edit,
   Trash2,
@@ -25,7 +28,11 @@ const AllocationRequestPage = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Fetch requests from API
-  const fetchRequests = useCallback(async () => {
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -78,11 +85,7 @@ const AllocationRequestPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+  };
 
   const handleCreateRequest = () => {
     setSelectedRequest(null);
@@ -204,6 +207,13 @@ const AllocationRequestPage = () => {
       default:
         return <AlertCircle className="w-4 h-4" />;
     }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN'
+    }).format(amount);
   };
 
   const CreateRequestModal = () => {

@@ -135,10 +135,16 @@ const apiClient = {
 
   // POST request
   async post(url, data = null, options = {}) {
+    const defaultHeaders = getAuthHeaders();
+    const headers = { ...defaultHeaders, ...options.headers };
+    
+    // Don't JSON.stringify FormData objects
+    const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      body: data ? JSON.stringify(data) : null,
+      headers,
+      body,
       ...options,
     });
     
@@ -147,10 +153,16 @@ const apiClient = {
 
   // PUT request
   async put(url, data = null, options = {}) {
+    const defaultHeaders = getAuthHeaders();
+    const headers = { ...defaultHeaders, ...options.headers };
+    
+    // Don't JSON.stringify FormData objects
+    const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
-      body: data ? JSON.stringify(data) : null,
+      headers,
+      body,
       ...options,
     });
     
@@ -159,10 +171,16 @@ const apiClient = {
 
   // PATCH request
   async patch(url, data = null, options = {}) {
+    const defaultHeaders = getAuthHeaders();
+    const headers = { ...defaultHeaders, ...options.headers };
+    
+    // Don't JSON.stringify FormData objects
+    const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: data ? JSON.stringify(data) : null,
+      headers,
+      body,
       ...options,
     });
     
@@ -171,9 +189,12 @@ const apiClient = {
 
   // DELETE request
   async delete(url, options = {}) {
+    const defaultHeaders = getAuthHeaders();
+    const headers = { ...defaultHeaders, ...options.headers };
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers,
       ...options,
     });
     

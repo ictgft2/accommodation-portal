@@ -164,7 +164,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         
         current_allocation = RoomAllocation.objects.filter(
             user=obj, 
-            status__in=['active', 'confirmed']
+            is_active=True
         ).first()
         
         if current_allocation:
@@ -173,9 +173,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 'room_number': current_allocation.room.room_number,
                 'building_name': current_allocation.room.building.name,
                 'allocation_date': current_allocation.allocation_date,
-                'status': current_allocation.status,
+                'is_active': current_allocation.is_active,
+                'allocation_type': current_allocation.allocation_type,
                 'room_capacity': current_allocation.room.capacity,
-                'room_type': current_allocation.room.room_type
+                'room_type': current_allocation.room.room_type,
+                'start_date': current_allocation.start_date,
+                'end_date': current_allocation.end_date,
+                'notes': current_allocation.notes
             }
         return None
     

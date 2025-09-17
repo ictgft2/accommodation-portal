@@ -202,11 +202,8 @@ export const userService = {
       const formData = new FormData();
       formData.append('avatar', avatarFile);
       
-      const response = await apiClient.post('/auth/profile/avatar/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // The apiClient will now properly handle FormData and authentication
+      const response = await apiClient.post('/auth/profile/avatar/', formData);
       return {
         success: true,
         data: response.data

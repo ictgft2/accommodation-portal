@@ -1,7 +1,50 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const { user } = useAuth();
+
+  // Get role-based paths
+  const getRoleBasedPath = (section) => {
+    if (!user) return '/dashboard';
+
+    const role = user.role;
+
+    switch (section) {
+      case 'dashboard':
+        return '/dashboard';
+      
+      case 'allocations':
+        if (role === 'SuperAdmin') {
+          return '/admin/allocations';
+        } else if (role === 'ServiceUnitAdmin') {
+          return '/service-unit/allocations';
+        } else {
+          return '/allocations'; // Member/Pastor view their own allocations
+        }
+      
+      case 'users':
+        if (role === 'SuperAdmin') {
+          return '/admin/users';
+        } else if (role === 'ServiceUnitAdmin') {
+          return '/service-unit/members';
+        } else {
+          return '/profile'; // Redirect to profile for non-admin users
+        }
+      
+      case 'buildings':
+        if (role === 'SuperAdmin') {
+          return '/admin/buildings';
+        } else {
+          return '/buildings'; // General building view
+        }
+      
+      default:
+        return '/dashboard';
+    }
+  };
 
   return (
     <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
@@ -25,20 +68,49 @@ const Footer = () => {
               </h3>
               <ul className="space-y-1">
                 <li>
-                  <a href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                  <Link 
+                    to={getRoleBasedPath('dashboard')} 
+                    className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
                     Dashboard
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/profile" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                  <Link 
+                    to="/profile" 
+                    className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
                     Profile
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/allocations" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                  <Link 
+                    to={getRoleBasedPath('allocations')} 
+                    className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
                     Allocations
-                  </a>
+                  </Link>
                 </li>
+                {(user?.role === 'SuperAdmin' || user?.role === 'ServiceUnitAdmin') && (
+                  <li>
+                    <Link 
+                      to={getRoleBasedPath('users')} 
+                      className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      {user?.role === 'SuperAdmin' ? 'Users' : 'Members'}
+                    </Link>
+                  </li>
+                )}
+                {user?.role === 'SuperAdmin' && (
+                  <li>
+                    <Link 
+                      to={getRoleBasedPath('buildings')} 
+                      className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      Buildings
+                    </Link>
+                  </li>
+                )}
               </ul>
             </div>
 

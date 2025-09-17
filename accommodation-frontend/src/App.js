@@ -193,20 +193,30 @@ function App() {
             path="/service-unit/allocations"
             element={
               <ProtectedRoute requiredRoles={['ServiceUnitAdmin']}>
+                <AllocationManagementPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Shared Routes for Members and Pastors */}
+          <Route
+            path="/allocations"
+            element={
+              <ProtectedRoute requiredRoles={['Pastor', 'Member']}>
                 <AllocationRequestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/buildings"
+            element={
+              <ProtectedRoute requiredRoles={['SuperAdmin', 'ServiceUnitAdmin', 'Pastor', 'Member']}>
+                <BuildingManagementPage />
               </ProtectedRoute>
             }
           />
 
           {/* Pastor Routes */}
-          <Route
-            path="/pastor/room/:roomId"
-            element={
-              <ProtectedRoute requiredRoles={['Pastor']}>
-                <RoomDetailsPage />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/pastor/requests"
             element={
@@ -215,21 +225,29 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Member Routes */}
           <Route
-            path="/member/room/:roomId"
+            path="/pastor/room/:roomId"
             element={
-              <ProtectedRoute requiredRoles={['Member']}>
+              <ProtectedRoute requiredRoles={['Pastor']}>
                 <RoomDetailsPage />
               </ProtectedRoute>
             }
           />
+
+          {/* Member Routes */}
           <Route
             path="/member/requests"
             element={
               <ProtectedRoute requiredRoles={['Member']}>
                 <AllocationRequestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/member/room/:roomId"
+            element={
+              <ProtectedRoute requiredRoles={['Member']}>
+                <RoomDetailsPage />
               </ProtectedRoute>
             }
           />

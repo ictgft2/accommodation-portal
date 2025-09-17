@@ -82,17 +82,14 @@ const AdminLayout = ({ children, title }) => {
         { name: 'My Service Unit', icon: UserCheck, path: '/service-unit/dashboard', roles: ['ServiceUnitAdmin'] },
         { name: 'Members', icon: Users, path: '/service-unit/members', roles: ['ServiceUnitAdmin'] },
         { name: 'Allocations', icon: Calendar, path: '/service-unit/allocations', roles: ['ServiceUnitAdmin'] },
-        { name: 'Reports', icon: BarChart3, path: '/service-unit/reports', roles: ['ServiceUnitAdmin'] },
       );
     } else if (user?.role === 'Pastor') {
       roleSpecificItems.push(
-        { name: 'My Allocations', icon: MapPin, path: '/pastor/allocations', roles: ['Pastor'] },
-        { name: 'Requests', icon: ClipboardList, path: '/pastor/requests', roles: ['Pastor'] },
+        { name: 'My Requests', icon: ClipboardList, path: '/pastor/requests', roles: ['Pastor'] },
       );
     } else if (user?.role === 'Member') {
       roleSpecificItems.push(
-        { name: 'My Allocations', icon: MapPin, path: '/member/allocations', roles: ['Member'] },
-        { name: 'Make Request', icon: ClipboardList, path: '/member/request', roles: ['Member'] },
+        { name: 'My Requests', icon: ClipboardList, path: '/member/requests', roles: ['Member'] },
       );
     }
 

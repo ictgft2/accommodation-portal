@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationDropdown from '../notifications/NotificationDropdown';
+import Footer from './Footer';
 import { 
   Home, 
   Users, 
@@ -184,11 +185,19 @@ const AdminLayout = ({ children, title }) => {
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
+                {user?.avatar_url ? (
+                  <img 
+                    src={user.avatar_url} 
+                    alt="Profile" 
+                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                    {user?.first_name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                )}
                 <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                  <p className="text-sm font-medium text-gray-900">{user?.full_name || user?.name || 'User'}</p>
                   <p className="text-xs text-gray-500">{user?.role || 'Member'}</p>
                 </div>
                 <ChevronDown className="w-4 h-4" />
@@ -200,11 +209,19 @@ const AdminLayout = ({ children, title }) => {
                   {/* User Info */}
                   <div className="px-4 py-3 border-b border-gray-100">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                      </div>
+                      {user?.avatar_url ? (
+                        <img 
+                          src={user.avatar_url} 
+                          alt="Profile" 
+                          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-semibold">
+                          {user?.first_name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                      )}
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                        <p className="text-sm font-medium text-gray-900">{user?.full_name || user?.name || 'User'}</p>
                         <p className="text-xs text-gray-500">{user?.email || 'user@example.com'}</p>
                         <span className="inline-block px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full mt-1">
                           {user?.role || 'Member'}
@@ -332,7 +349,7 @@ const AdminLayout = ({ children, title }) => {
       </aside>
 
       {/* Main Content */}
-      <main className={`pt-16 transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-72'}`}>
+      <main className={`pt-16 transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-72'} min-h-screen flex flex-col`}>
         {/* Page Header */}
         <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -355,9 +372,12 @@ const AdminLayout = ({ children, title }) => {
         </div>
 
         {/* Page Content */}
-        <div className="p-4 sm:p-6">
+        <div className="flex-1 p-4 sm:p-6">
           {children}
         </div>
+
+        {/* Footer */}
+        <Footer />
       </main>
 
       {/* Mobile Sidebar Overlay */}

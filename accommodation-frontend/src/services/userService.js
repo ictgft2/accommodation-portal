@@ -179,7 +179,7 @@ export const userService = {
    */
   async updateProfile(profileData) {
     try {
-      const response = await apiClient.put('/auth/profile/', profileData);
+      const response = await apiClient.patch('/auth/profile/', profileData);
       return {
         success: true,
         data: response.data

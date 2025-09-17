@@ -147,6 +147,16 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // Update user data
+  const updateUser = useCallback((userData) => {
+    setUser(prevUser => {
+      const updatedUser = { ...prevUser, ...userData };
+      // Update localStorage as well
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  }, []);
+
   const value = {
     user,
     isAuthenticated: !!user,
@@ -156,7 +166,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     register,
     refreshToken,
-    clearError
+    clearError,
+    updateUser
   };
 
   return (

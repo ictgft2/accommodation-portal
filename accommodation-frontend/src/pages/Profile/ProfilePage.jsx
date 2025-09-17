@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 const ProfilePage = () => {
-  const { user } = useAuthContext();
+  const { user, updateUser } = useAuthContext();
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -168,6 +168,9 @@ const ProfilePage = () => {
         setIsEditing(false);
         setSuccessMessage('Profile updated successfully!');
         
+        // Update user data in auth context
+        updateUser(response.data);
+        
         // Auto-hide success message after 3 seconds
         setTimeout(() => {
           setSuccessMessage('');
@@ -251,6 +254,9 @@ const ProfilePage = () => {
         setAvatarFile(null);
         setAvatarPreview(null);
         setSuccessMessage('Avatar updated successfully!');
+        
+        // Update user data in auth context
+        updateUser(response.data);
         
         // Auto-hide success message after 3 seconds
         setTimeout(() => {

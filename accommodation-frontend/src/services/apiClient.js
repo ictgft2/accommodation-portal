@@ -135,8 +135,15 @@ const apiClient = {
 
   // POST request
   async post(url, data = null, options = {}) {
-    const defaultHeaders = getAuthHeaders();
-    const headers = { ...defaultHeaders, ...options.headers };
+    let headers = getAuthHeaders();
+    
+    // For FormData, remove Content-Type to let browser set boundary
+    if (data instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+    
+    // Merge with any custom headers
+    headers = { ...headers, ...options.headers };
     
     // Don't JSON.stringify FormData objects
     const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
@@ -153,8 +160,15 @@ const apiClient = {
 
   // PUT request
   async put(url, data = null, options = {}) {
-    const defaultHeaders = getAuthHeaders();
-    const headers = { ...defaultHeaders, ...options.headers };
+    let headers = getAuthHeaders();
+    
+    // For FormData, remove Content-Type to let browser set boundary
+    if (data instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+    
+    // Merge with any custom headers
+    headers = { ...headers, ...options.headers };
     
     // Don't JSON.stringify FormData objects
     const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
@@ -171,8 +185,15 @@ const apiClient = {
 
   // PATCH request
   async patch(url, data = null, options = {}) {
-    const defaultHeaders = getAuthHeaders();
-    const headers = { ...defaultHeaders, ...options.headers };
+    let headers = getAuthHeaders();
+    
+    // For FormData, remove Content-Type to let browser set boundary
+    if (data instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+    
+    // Merge with any custom headers
+    headers = { ...headers, ...options.headers };
     
     // Don't JSON.stringify FormData objects
     const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : null);
@@ -189,8 +210,7 @@ const apiClient = {
 
   // DELETE request
   async delete(url, options = {}) {
-    const defaultHeaders = getAuthHeaders();
-    const headers = { ...defaultHeaders, ...options.headers };
+    const headers = { ...getAuthHeaders(), ...options.headers };
     
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: 'DELETE',

@@ -44,14 +44,24 @@ class RoomListSerializer(serializers.ModelSerializer):
     Lightweight serializer for room lists.
     """
     building_name = serializers.CharField(source='building.name', read_only=True)
+    building = serializers.SerializerMethodField()
     is_available = serializers.SerializerMethodField()
     
     class Meta:
         model = Room
         fields = [
-            'id', 'room_number', 'building_name', 'capacity',
+            'id', 'room_number', 'building', 'building_name', 'capacity',
             'has_toilet', 'has_washroom', 'is_allocated', 'is_available'
         ]
+    
+    def get_building(self, obj):
+        """Return building info for frontend compatibility."""
+        if obj.building:
+            return {
+                'id': obj.building.id,
+                'name': obj.building.name
+            }
+        return None
     
     def get_is_available(self, obj):
         """Check if room is currently available."""
@@ -150,7 +160,7 @@ class BuildingListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Building
         fields = [
-            'id', 'name', 'location', 'total_rooms',
+            'id', 'name', 'location', 'description', 'total_rooms',
             'available_rooms', 'occupancy_rate'
         ]
     
@@ -168,6 +178,8 @@ class BuildingCreateUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for creating and updating buildings.
     """
+    created_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
     class Meta:
         model = Building
         fields = [
@@ -188,5 +200,11 @@ class BuildingCreateUpdateSerializer(serializers.ModelSerializer):
             )
         
         return value
+    
+    def update(self, instance, validated_data):
+        """Override update to exclude created_by field."""
+        # Remove created_by from validated_data for updates
+        validated_data.pop('created_by', None)
+        return super().update(instance, validated_data)
 
 

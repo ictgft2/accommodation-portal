@@ -12,9 +12,9 @@ export const authService = {
    */
   async login(credentials) {
     try {
-      // Convert email to username field for Django backend
+      // Send email and password directly to Django backend
       const loginData = {
-        username: credentials.email || credentials.username,
+        email: credentials.email,
         password: credentials.password
       };
       const response = await apiClient.post('/auth/login/', loginData);
@@ -136,7 +136,7 @@ export const authService = {
    */
   async getCurrentUser() {
     try {
-      const response = await apiClient.get('/profile/');
+      const response = await apiClient.get('/auth/profile/');
       
       // Update stored user data
       localStorage.setItem('user', JSON.stringify(response.data));
@@ -165,7 +165,7 @@ export const authService = {
       }
 
       // Simply try to get current user to verify token
-      const response = await apiClient.get('/profile/');
+      const response = await apiClient.get('/auth/profile/');
       return {
         success: true,
         data: response.data

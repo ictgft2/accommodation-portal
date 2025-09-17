@@ -3,9 +3,19 @@ User models for Accommodation Portal authentication system.
 Based on the SQL schema design with Django best practices.
 """
 
+import os
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import RegexValidator
+
+
+def user_avatar_path(instance, filename):
+    """Generate upload path for user avatars."""
+    # Get file extension
+    ext = filename.split('.')[-1]
+    # Generate new filename
+    filename = f"avatar_{instance.id}.{ext}"
+    return os.path.join('avatars', filename)
 
 
 class User(AbstractUser):
@@ -65,6 +75,21 @@ class User(AbstractUser):
     email = models.EmailField(
         unique=True,
         help_text="Email address (must be unique)"
+    )
+    
+    # Avatar/Profile picture
+    avatar = models.ImageField(
+        upload_to=user_avatar_path,
+        null=True,
+        blank=True,
+        help_text="User profile picture/avatar"
+    )
+    
+    # User settings (JSON field for storing user preferences)
+    settings = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User settings and preferences stored as JSON"
     )
     
     # Timestamps (created_at, updated_at)

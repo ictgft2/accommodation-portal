@@ -27,6 +27,8 @@ urlpatterns = [
     path('api/allocations/', include('apps.allocations.urls')),
     path('api/members/', include('apps.members.urls')),
     path('api/reports/', include('apps.reports.urls')),
+    path('api/', include('apps.analytics.urls')),  # Analytics endpoints
+    path('api/', include('apps.core.urls')),  # Dashboard endpoints
 ]
 
 # Serve media files in development

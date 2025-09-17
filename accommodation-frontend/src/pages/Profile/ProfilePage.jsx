@@ -18,7 +18,13 @@ import {
   AlertCircle,
   RefreshCw,
   Upload,
-  Camera
+  Camera,
+  Building,
+  Clock,
+  Users,
+  Home,
+  CheckCircle,
+  Settings
 } from 'lucide-react';
 
 const ProfilePage = () => {
@@ -26,20 +32,25 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [profileData, setProfileData] = useState({
+    id: '',
+    username: '',
+    email: '',
     first_name: '',
     last_name: '',
-    email: '',
-    username: '',
+    full_name: '',
     phone_number: '',
-    address: '',
-    date_of_birth: '',
-    gender: '',
     role: '',
     service_unit: '',
+    service_unit_name: '',
+    avatar: null,
+    avatar_url: null,
     date_joined: '',
     last_login: '',
-    bio: '',
-    avatar: null
+    created_at: '',
+    updated_at: '',
+    current_allocation: null,
+    allocation_count: 0,
+    is_service_unit_admin: false
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -72,20 +83,8 @@ const ProfilePage = () => {
       
       if (response.success) {
         setProfileData({
-          first_name: response.data.first_name || '',
-          last_name: response.data.last_name || '',
-          email: response.data.email || '',
-          username: response.data.username || '',
+          ...response.data,
           phone_number: response.data.phone_number || '',
-          address: response.data.address || '',
-          date_of_birth: response.data.date_of_birth || '',
-          gender: response.data.gender || '',
-          role: response.data.role || '',
-          service_unit: response.data.service_unit || '',
-          date_joined: response.data.date_joined || '',
-          last_login: response.data.last_login || '',
-          bio: response.data.bio || '',
-          avatar: response.data.avatar || null
         });
       } else {
         setError(response.message || 'Failed to fetch profile data');

@@ -6,13 +6,9 @@ import {
   Settings, 
   Bell, 
   Shield, 
-  Palette, 
   Globe, 
   Database,
   Mail,
-  Moon,
-  Sun,
-  Monitor,
   Volume2,
   VolumeX,
   Lock,
@@ -55,13 +51,6 @@ const SettingsPage = () => {
         comments: true,
         mentions: true
       }
-    },
-    appearance: {
-      theme: 'light', // light, dark, system
-      color_scheme: 'red', // red, blue, green, purple
-      compact_mode: false,
-      font_size: 'medium', // small, medium, large
-      animations: true
     },
     privacy: {
       profile_visibility: 'organization', // public, organization, private
@@ -193,7 +182,6 @@ const SettingsPage = () => {
 
   const tabs = [
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'language', label: 'Language & Region', icon: Globe },
     { id: 'security', label: 'Security', icon: Lock },
@@ -210,7 +198,7 @@ const SettingsPage = () => {
         </div>
         
         <div className="space-y-4">
-          {Object.entries(settings.notifications.email).map(([key, value]) => (
+          {Object.entries(settings.notifications?.email || {}).map(([key, value]) => (
             <div key={key} className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700 capitalize">
@@ -242,7 +230,7 @@ const SettingsPage = () => {
         </div>
         
         <div className="space-y-4">
-          {Object.entries(settings.notifications.push).map(([key, value]) => (
+          {Object.entries(settings.notifications?.push || {}).map(([key, value]) => (
             <div key={key} className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700 capitalize">
@@ -274,7 +262,7 @@ const SettingsPage = () => {
         </div>
         
         <div className="space-y-4">
-          {Object.entries(settings.notifications.inApp).map(([key, value]) => (
+          {Object.entries(settings.notifications?.inApp || {}).map(([key, value]) => (
             <div key={key} className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700 capitalize">
@@ -295,114 +283,6 @@ const SettingsPage = () => {
               </label>
             </div>
           ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAppearanceTab = () => (
-    <div className="space-y-6">
-      {/* Theme */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Theme</h3>
-        
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { value: 'light', label: 'Light', icon: Sun },
-            { value: 'dark', label: 'Dark', icon: Moon },
-            { value: 'system', label: 'System', icon: Monitor }
-          ].map(({ value, label, icon: Icon }) => (
-            <button
-              key={value}
-              onClick={() => updateDirectSetting('appearance', 'theme', value)}
-              className={`p-4 border-2 rounded-lg flex flex-col items-center space-y-2 transition-colors ${
-                settings.appearance.theme === value
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <Icon className="w-6 h-6 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Color Scheme */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Color Scheme</h3>
-        
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { value: 'red', color: 'bg-red-500' },
-            { value: 'blue', color: 'bg-blue-500' },
-            { value: 'green', color: 'bg-green-500' },
-            { value: 'purple', color: 'bg-purple-500' }
-          ].map(({ value, color }) => (
-            <button
-              key={value}
-              onClick={() => updateDirectSetting('appearance', 'colorScheme', value)}
-              className={`p-4 border-2 rounded-lg flex items-center justify-center transition-colors ${
-                settings.appearance.colorScheme === value
-                  ? 'border-gray-800'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full ${color}`}></div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Display Options */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Display Options</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Compact Mode</label>
-              <p className="text-xs text-gray-500">Use less spacing for a denser interface</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.appearance.compactMode}
-                onChange={(e) => updateDirectSetting('appearance', 'compactMode', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Animations</label>
-              <p className="text-xs text-gray-500">Enable smooth transitions and animations</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.appearance.animations}
-                onChange={(e) => updateDirectSetting('appearance', 'animations', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Font Size</label>
-            <select
-              value={settings.appearance.fontSize}
-              onChange={(e) => updateDirectSetting('appearance', 'fontSize', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            >
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
         </div>
       </div>
     </div>
@@ -758,8 +638,6 @@ const SettingsPage = () => {
     switch (activeTab) {
       case 'notifications':
         return renderNotificationsTab();
-      case 'appearance':
-        return renderAppearanceTab();
       case 'privacy':
         return renderPrivacyTab();
       case 'language':

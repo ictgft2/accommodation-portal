@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/authContext';
 
 // Developer mode - set to true to bypass all protections during development
-const DEVELOPER_MODE = true; // Changed to false for proper authentication
+const DEVELOPER_MODE = true; 
 
 // Keys / helpers
 const K_BOOKING = 'reservation.bookingInfo';

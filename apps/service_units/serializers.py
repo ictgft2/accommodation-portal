@@ -35,9 +35,9 @@ class ServiceUnitSerializer(serializers.ModelSerializer):
     
     def validate_admin(self, value):
         """Validate that the admin user can manage service units."""
-        if value and value.role not in ['SuperAdmin', 'ServiceUnitAdmin']:
+        if value and value.role not in ['SuperAdmin', 'Deacon']:
             raise serializers.ValidationError(
-                "Only SuperAdmin and ServiceUnitAdmin roles can be assigned as service unit admins."
+                "Only SuperAdmin and Deacon roles can be assigned as service unit admins."
             )
         return value
 
@@ -61,17 +61,17 @@ class ServiceUnitCreateSerializer(serializers.ModelSerializer):
     def validate_admin(self, value):
         """Validate admin assignment."""
         if value:
-            if value.role not in ['SuperAdmin', 'ServiceUnitAdmin']:
+            if value.role not in ['SuperAdmin', 'Deacon']:
                 raise serializers.ValidationError(
-                    "Only SuperAdmin and ServiceUnitAdmin roles can be assigned as service unit admins."
+                    "Only SuperAdmin and Deacon roles can be assigned as service unit admins."
                 )
-            
+
             # Check if admin is already managing another service unit
             if hasattr(value, 'administered_units') and value.administered_units.exists():
                 raise serializers.ValidationError(
                     "This user is already managing another service unit."
                 )
-        
+
         return value
 
 
@@ -99,15 +99,20 @@ class ServiceUnitMemberSerializer(serializers.ModelSerializer):
     Serializer for service unit members.
     """
     full_name = serializers.CharField(source='get_full_name', read_only=True)
-    
+    is_deacon = serializers.SerializerMethodField()
+
     class Meta:
         # Get User model dynamically to avoid circular imports
         model = apps.get_model('authentication', 'User')
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'full_name', 'phone_number', 'role', 'is_service_unit_admin',
+            'full_name', 'phone_number', 'role', 'is_deacon',
             'date_joined'
         ]
+
+    def get_is_deacon(self, obj):
+        """Check if user is a deacon."""
+        return obj.role == 'Deacon'
 
 
 class ServiceUnitStatsSerializer(serializers.ModelSerializer):

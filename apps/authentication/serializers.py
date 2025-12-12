@@ -31,7 +31,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = (
             'username', 'email', 'password', 'password_confirm',
             'first_name', 'last_name', 'phone_number', 'role',
-            'service_unit', 'is_service_unit_admin'
+            'service_unit'
         )
         extra_kwargs = {
             'first_name': {'required': True},
@@ -48,16 +48,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         # Role-based validation
         role = attrs.get('role')
         service_unit = attrs.get('service_unit')
-        is_service_unit_admin = attrs.get('is_service_unit_admin', False)
-        
-        if role == 'ServiceUnitAdmin' and not service_unit:
+
+        # Deacons must be assigned to a service unit
+        if role == 'Deacon' and not service_unit:
             raise serializers.ValidationError(
-                {"service_unit": "Service Unit Admins must be assigned to a service unit."}
-            )
-        
-        if is_service_unit_admin and role not in ['ServiceUnitAdmin', 'SuperAdmin']:
-            raise serializers.ValidationError(
-                {"is_service_unit_admin": "Only ServiceUnitAdmin and SuperAdmin roles can be service unit admins."}
+                {"service_unit": "Deacons must be assigned to a service unit."}
             )
         
         return attrs
@@ -126,17 +121,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only=True
     )
     avatar_url = serializers.SerializerMethodField()
-    is_service_unit_admin = serializers.SerializerMethodField()
+    is_deacon = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
     current_allocation = serializers.SerializerMethodField()
     allocation_count = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = User
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
             'phone_number', 'role', 'service_unit', 'service_unit_name',
-            'is_service_unit_admin', 'avatar', 'avatar_url', 'date_joined', 
+            'is_deacon', 'avatar', 'avatar_url', 'date_joined',
             'last_login', 'created_at', 'updated_at', 'current_allocation', 'allocation_count'
         )
         read_only_fields = ('id', 'username', 'date_joined', 'last_login', 'created_at', 'updated_at')
@@ -150,9 +145,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return obj.avatar.url
         return None
     
-    def get_is_service_unit_admin(self, obj):
-        """Check if user is a service unit admin."""
-        return obj.role == 'ServiceUnitAdmin'
+    def get_is_deacon(self, obj):
+        """Check if user is a deacon."""
+        return obj.role == 'Deacon'
     
     def get_full_name(self, obj):
         """Get user's full name."""
@@ -320,13 +315,13 @@ class UserListSerializer(serializers.ModelSerializer):
         read_only=True
     )
     avatar_url = serializers.SerializerMethodField()
-    is_service_unit_admin = serializers.SerializerMethodField()
-    
+    is_deacon = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'service_unit_name', 'is_service_unit_admin',
+            'role', 'service_unit_name', 'is_deacon',
             'is_active', 'avatar_url', 'date_joined'
         )
     
@@ -339,6 +334,6 @@ class UserListSerializer(serializers.ModelSerializer):
             return obj.avatar.url
         return None
     
-    def get_is_service_unit_admin(self, obj):
-        """Check if user is a service unit admin."""
-        return obj.role == 'ServiceUnitAdmin'
+    def get_is_deacon(self, obj):
+        """Check if user is a deacon."""
+        return obj.role == 'Deacon'

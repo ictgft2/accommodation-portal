@@ -21,14 +21,14 @@ def user_avatar_path(instance, filename):
 class User(AbstractUser):
     """
     Custom User model extending Django's AbstractUser.
-    
+
     Maps to SQL Users table with the following fields:
     - UserID (auto-generated primary key)
     - FullName (split into first_name, last_name from AbstractUser)
     - Email (from AbstractUser, made required and unique)
     - PasswordHash (handled by AbstractUser password field)
     - PhoneNumber
-    - Role (choices: SuperAdmin, ServiceUnitAdmin, Pastor, Member)
+    - Role (choices: SuperAdmin, PortalManager, Pastor, Deacon, Member)
     - ServiceUnitID (foreign key to ServiceUnit)
     - IsActive (from AbstractUser is_active field)
     - CreatedAt, UpdatedAt (auto timestamps)
@@ -37,9 +37,10 @@ class User(AbstractUser):
     # Role choices matching SQL CHECK constraint
     class RoleChoices(models.TextChoices):
         SUPER_ADMIN = 'SuperAdmin', 'Super Admin'
-        SERVICE_UNIT_ADMIN = 'ServiceUnitAdmin', 'Service Unit Admin'
+        PORTAL_MANAGER = 'PortalManager', 'Portal Manager'
         PASTOR = 'Pastor', 'Pastor'
-        MEMBER = 'Member', 'Member'
+        DEACON = 'Deacon', 'Deacon'
+        MEMBER = 'Member', 'Unit Member'
     
     # Phone number validator
     phone_regex = RegexValidator(
@@ -121,32 +122,57 @@ class User(AbstractUser):
     def is_super_admin(self):
         """Check if user is a super admin."""
         return self.role == self.RoleChoices.SUPER_ADMIN
-    
-    def is_service_unit_admin(self):
-        """Check if user is a service unit admin."""
-        return self.role == self.RoleChoices.SERVICE_UNIT_ADMIN
-    
+
+    def is_portal_manager(self):
+        """Check if user is a portal manager."""
+        return self.role == self.RoleChoices.PORTAL_MANAGER
+
     def is_pastor(self):
         """Check if user is a pastor."""
         return self.role == self.RoleChoices.PASTOR
-    
+
+    def is_deacon(self):
+        """Check if user is a deacon."""
+        return self.role == self.RoleChoices.DEACON
+
     def is_member(self):
         """Check if user is a regular member."""
         return self.role == self.RoleChoices.MEMBER
-    
+
     def can_manage_service_unit(self, service_unit=None):
         """Check if user can manage a specific service unit."""
         if self.is_super_admin():
             return True
-        if self.is_service_unit_admin() and service_unit:
+        if self.is_deacon() and service_unit:
             return self.service_unit == service_unit
         return False
-    
+
     def can_allocate_rooms(self):
         """Check if user can allocate rooms."""
         return self.role in [
             self.RoleChoices.SUPER_ADMIN,
-            self.RoleChoices.SERVICE_UNIT_ADMIN
+            self.RoleChoices.DEACON
+        ]
+
+    def can_manage_bookings(self):
+        """Check if user can manage all bookings (Portal Manager functionality)."""
+        return self.role in [
+            self.RoleChoices.SUPER_ADMIN,
+            self.RoleChoices.PORTAL_MANAGER
+        ]
+
+    def can_approve_unit_requests(self):
+        """Check if user can approve booking requests for their unit (Deacon functionality)."""
+        return self.role in [
+            self.RoleChoices.SUPER_ADMIN,
+            self.RoleChoices.DEACON
+        ]
+
+    def can_book_pastor_properties(self):
+        """Check if user can book pastor-designated properties without approval."""
+        return self.role in [
+            self.RoleChoices.SUPER_ADMIN,
+            self.RoleChoices.PASTOR
         ]
     
     def save(self, *args, **kwargs):

@@ -25,14 +25,15 @@ from apps.buildings.models import Room
 from apps.analytics.utils import EventLogger, EventType
 
 
-class IsSuperAdminOrServiceUnitAdmin(permissions.BasePermission):
+class CanManageAllocations(permissions.BasePermission):
     """
-    Permission class that allows access to SuperAdmin and ServiceUnitAdmin users.
+    Permission class that allows access to users who can manage allocations.
+    Includes: SuperAdmin, PortalManager, and Deacon users.
     """
     def has_permission(self, request, view):
         return (
-            request.user.is_authenticated and 
-            request.user.role in ['SuperAdmin', 'ServiceUnitAdmin']
+            request.user.is_authenticated and
+            request.user.role in ['SuperAdmin', 'PortalManager', 'Deacon']
         )
 
 
@@ -52,7 +53,7 @@ class RoomAllocationViewSet(viewsets.ModelViewSet):
     ).all()
     
     serializer_class = RoomAllocationSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSuperAdminOrServiceUnitAdmin]
+    permission_classes = [permissions.IsAuthenticated, CanManageAllocations]
     
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = {
@@ -84,18 +85,18 @@ class RoomAllocationViewSet(viewsets.ModelViewSet):
         """Filter queryset based on user permissions."""
         queryset = super().get_queryset()
         user = self.request.user
-        
-        # SuperAdmin can see all allocations
-        if user.role == 'SuperAdmin':
+
+        # SuperAdmin and PortalManager can see all allocations
+        if user.role in ['SuperAdmin', 'PortalManager']:
             return queryset
-        
-        # ServiceUnitAdmin can see allocations for their service unit
-        if user.role == 'ServiceUnitAdmin':
+
+        # Deacon can see allocations for their service unit
+        if user.role == 'Deacon':
             return queryset.filter(
                 models.Q(service_unit__admin=user) |
                 models.Q(allocated_by=user)
             )
-        
+
         # Regular users can only see their own allocations
         return queryset.filter(user=user)
     
@@ -224,35 +225,35 @@ class AllocationRequestViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Set permissions based on action."""
         if self.action in ['approve', 'reject']:
-            # Only SuperAdmin and ServiceUnitAdmin can approve/reject
-            permission_classes = [permissions.IsAuthenticated, IsSuperAdminOrServiceUnitAdmin]
+            # Only SuperAdmin, PortalManager, and Deacon can approve/reject
+            permission_classes = [permissions.IsAuthenticated, CanManageAllocations]
         else:
             permission_classes = [permissions.IsAuthenticated]
-        
+
         return [permission() for permission in permission_classes]
     
     def get_queryset(self):
         """Filter queryset based on user permissions."""
         queryset = super().get_queryset()
         user = self.request.user
-        
-        # SuperAdmin can see all requests
-        if user.role == 'SuperAdmin':
+
+        # SuperAdmin and PortalManager can see all requests
+        if user.role in ['SuperAdmin', 'PortalManager']:
             return queryset
-        
-        # ServiceUnitAdmin can see requests for their service unit members
-        if user.role == 'ServiceUnitAdmin':
+
+        # Deacon can see requests for their service unit members
+        if user.role == 'Deacon':
             # Get service unit members
-            from apps.members.models import Member
-            service_unit_member_ids = Member.objects.filter(
+            from apps.authentication.models import User as AuthUser
+            service_unit_member_ids = AuthUser.objects.filter(
                 service_unit__admin=user
-            ).values_list('user_id', flat=True)
-            
+            ).values_list('id', flat=True)
+
             return queryset.filter(
                 models.Q(requested_by=user) |
                 models.Q(requested_by_id__in=service_unit_member_ids)
             )
-        
+
         # Regular users can only see their own requests
         return queryset.filter(requested_by=user)
     

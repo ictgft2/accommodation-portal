@@ -37,7 +37,7 @@ class ServiceUnit(models.Model):
         null=True,
         blank=True,
         related_name='administered_units',
-        limit_choices_to={'role__in': ['SuperAdmin', 'ServiceUnitAdmin']},
+        limit_choices_to={'role__in': ['SuperAdmin', 'Deacon']},
         help_text="Admin user responsible for managing this service unit"
     )
     
@@ -81,11 +81,11 @@ class ServiceUnit(models.Model):
         # Super admin can manage any service unit
         if user.is_super_admin():
             return True
-        
-        # Service unit admin can only manage their assigned unit
-        if user.is_service_unit_admin():
+
+        # Deacon can only manage their assigned unit
+        if user.is_deacon():
             return self.admin == user
-        
+
         return False
     
     def get_available_rooms(self):
